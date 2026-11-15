@@ -6,7 +6,7 @@ Il gioco è un singolo file `index.html` (Three.js caricato da CDN tramite impor
 
 ## 🎮 Gioca
 
-**Online:** https://gattoitA-lab.github.io/zombie-slayer-3d/
+**Online:** https://gattoita-lab.github.io/zombie-slayer-3d/
 
 In locale basta aprire `index.html` con un server statico, ad esempio:
 
