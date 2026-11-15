@@ -294,13 +294,18 @@ const ZIDS=Object.keys(ZT);
 
 /* ================= SALVATAGGIO / BACKEND ================= */
 const isM=isTouch;
-const defSave=()=>({coins:150,xp:0,heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35}});
+const defSave=()=>({coins:150,xp:0,spd:0,heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35}});
 const skinList=hid=>SKINS[hid]||SKINS.sword;
 const skinOf=(hid,id)=>skinList(hid).find(s=>s.id===id)||skinList(hid)[0];
 const ownsSkin=id=>{for(const hs in SKINS){const s=SKINS[hs].find(x=>x.id===id);if(s)return s.price===0||(S.skins||[]).includes(id)}return false};
 const curSkin=(hid)=>{const h0=hid||S.hero;return skinOf(h0,(S.eqSkin||{})[h0])};
 let S=defSave(),U={uid:'guest',name:'Ospite'},dirty=false;
 const lvlInfo=xp=>{let l=1,n=100;while(xp>=n){xp-=n;l++;n=100+(l-1)*60}return{l,cur:xp,need:n}};
+const SPD_MAX=10,SPD_STEP=.04;
+const spdLv=()=>Math.min(SPD_MAX,S.spd||0);
+const spdMult=()=>1+SPD_STEP*spdLv();
+const spdCost=lv=>Math.round(60*Math.pow(1.28,lv)/5)*5;
+function addXp(n){n=Math.max(0,Math.round(n));const l0=lvlInfo(S.xp).l;S.xp+=n;const l1=lvlInfo(S.xp).l;if(l1>l0){let c=0;for(let l=l0+1;l<=l1;l++)c+=50+20*(l-1);S.coins+=c;toast('⭐ Livello '+l1+'! +🪙 '+c);sfx('coin')}return l1-l0}
 const LocalBE={rate:12,acc(){try{return JSON.parse(localStorage.getItem('zs_acc')||'{}')}catch{return{}}},
 async hash(p){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('zs3d'+p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch{return btoa(p)}},
 async register(u,p){const a=this.acc(),k=u.toLowerCase();if(a[k])throw new Error('Nome utente già esistente');const s=defSave();a[k]={h:await this.hash(p),save:s,name:u};localStorage.setItem('zs_acc',JSON.stringify(a));localStorage.setItem('zs_sess',k);return{uid:k,name:u,save:s}},
@@ -620,7 +625,7 @@ this.h.publish({sid:this.sid,s:this.state,ev:this.evq,ts:n});this.force=false},
 count(){return 1+Object.keys(this.peers).length}};
 
 /* ================= STATO DI GIOCO ================= */
-const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,bound:44,tut:false,chkT:0};
+const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,bound:44,tut:false,chkT:0};
 const P={x:0,y:0,z:0,vy:0,face:0,hp:100,mhp:100,burn:0,poison:0,shieldT:0,swingT:9,swingHit:true,atk:0,cd:{},fireT:0,fireTick:0,fireCol:0xff7a1a,mv:0,sw:0,kx:0,kz:0,rd:0,rt:0,recoil:0,hatOut:false,model:null,down:0,out:false,inv:0,regen:0,fury:0,rapid:0};
 const rev={tgt:null,p:0,cool:0};
 const cam={yaw:0,pitch:.35,dist:5};
@@ -715,7 +720,7 @@ function startTutorial(){closeModal();$('#over').classList.add('hidden');leaveLo
  for(const[x,z]of[[0,13],[5,11],[-5,12]]){const o=spawnZ('normal',x,z);o.dummy=true;o.hp=40;o.maxhp=40}
  showTut();toast('Tutorial: segui i passaggi in alto')}
 function skipTut(){S.tutDone=true;persist(true);TUT.on=false;stopGame();enterMenu()}
-function tutDone(){S.tutDone=true;S.xp+=200;S.coins+=100;persist(true);TUT.on=false;$('#tutbox').classList.add('hidden');banner('🎓 Tutorial completato!');sfx('coin');setTimeout(()=>{if(G.tut)exitToMenu()},1700)}
+function tutDone(){S.tutDone=true;addXp(200);S.coins+=100;persist(true);TUT.on=false;$('#tutbox').classList.add('hidden');banner('🎓 Tutorial completato!');sfx('coin');setTimeout(()=>{if(G.tut)exitToMenu()},1700)}
 function tutTick(dt){if(!G.tut)return;
  const dl=Math.abs(cam.yaw-TUT.yaw);TUT.yaw=cam.yaw;if(dl<2.5)TUT.look+=dl;
  TUT.moved+=Math.hypot(P.x-TUT.px,P.z-TUT.pz);TUT.px=P.x;TUT.pz=P.z;
@@ -731,8 +736,8 @@ $('#tutbox').addEventListener('click',e=>{if(e.target.dataset&&e.target.dataset.
 /* ---- Incarichi e ricompense ---- */
 function qAdd(k,n){S.q[k]=(S.q[k]||0)+n}
 function qMax(k,v){S.q[k]=Math.max(S.q[k]||0,v)}
-function reward(type){const T=ZT[type],c=Math.round(T.coin*DIFFS[G.diff].coin),l0=lvlInfo(S.xp).l;S.coins+=c;S.xp+=T.xp;G.coinsEarned+=c;G.kills++;qAdd('kills',1);qAdd('coins',c);if(type==='gunner')qAdd('gunner',1);if(type==='giant')qAdd('giant',1);if(type==='boss')qAdd('boss',1);
-sfx('coin');if(lvlInfo(S.xp).l>l0)toast('⭐ Livello '+lvlInfo(S.xp).l+'!');persist()}
+function reward(type){const T=ZT[type],c=Math.round(T.coin*DIFFS[G.diff].coin);S.coins+=c;addXp(T.xp);G.coinsEarned+=c;G.kills++;qAdd('kills',1);qAdd('coins',c);if(type==='gunner')qAdd('gunner',1);if(type==='giant')qAdd('giant',1);if(type==='boss')qAdd('boss',1);
+sfx('coin');persist()}
 
 /* ================= EVENTI RETE ================= */
 function handleEvent(from,t,d){
@@ -851,7 +856,7 @@ if(P.regen>0){P.regen-=dt;P.hp=Math.min(P.mhp,P.hp+25*dt)}
 if(P.fury>0)P.fury-=dt;if(P.rapid>0)P.rapid-=dt;
 if(P.hp<=0){P.hp=0;downPlayer();return}
 const l=Math.hypot(ix,iz);if(l>1){ix/=l;iz/=l}
-const sy=Math.sin(cam.yaw),cy=Math.cos(cam.yaw),mx=sy*iz-cy*ix,mz=cy*iz+sy*ix,spd=H.spd*(P.shieldT>0?1.15:1)*(P.poison>0?.8:1)*(P.fury>0?1.25:1);
+const sy=Math.sin(cam.yaw),cy=Math.cos(cam.yaw),mx=sy*iz-cy*ix,mz=cy*iz+sy*ix,spd=H.spd*spdMult()*(P.shieldT>0?1.15:1)*(P.poison>0?.8:1)*(P.fury>0?1.25:1);
 P.x+=mx*spd*dt+P.kx*dt;P.z+=mz*spd*dt+P.kz*dt;P.kx*=Math.pow(.02,dt);P.kz*=Math.pow(.02,dt);P.mv=Math.hypot(mx,mz)*spd;
 P.vy-=26*dt;P.y+=P.vy*dt;let gr=false;if(P.y<=0){P.y=0;P.vy=0;gr=true}if(I.jump&&gr&&P.burn<=0){P.vy=9}
 pushOut(P,.5);
@@ -889,18 +894,18 @@ if(o.hp<=0){o.hp=0;o.dead=true;o.dt=0;
  if(o.dummy){if(by===Net.id)TUT.kills++;burst(o.x,1.2,o.z,0x4a7a2a,10,5,4)}
  else{if(by===Net.id)reward(o.type);else Net.event('kill',{to:by,t:o.type});
   if(T.boss){banner('👑 RE ZOMBIE SCONFITTO!');sfx('boom');burst(o.x,3,o.z,0xffd24a,60,14,10,1.6);for(const h of G.hazards)if(h.src===o.id)h.dead=true}}}}
-function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=1+(w-1)*.05,wfs=1+(w-1)*.02,hp=T.hp*D.hp*wf*bm;const o={id:G.nid++,type,x,z,ry:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs};G.zombies.push(o);G.zById[o.id]=o;if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
+function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs};G.zombies.push(o);G.zById[o.id]=o;if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
 function targets(){const t=[];if(P.hp>0)t.push({id:Net.id,me:true,x:P.x,z:P.z,y:P.y});for(const id in Net.peers){const s=Net.peers[id].doc.s;if(s&&s.ing&&s.hp>0)t.push({id,x:s.x,z:s.z,y:s.y||0})}
  if(G.garden&&G.garden.hp>0&&!G.final)t.push({garden:true,id:'garden',x:G.garden.x,z:G.garden.z,y:0});return t}
 function hurtT(t,a,fx){if(t.garden){if(!G.garden)return;G.garden.hp=Math.max(0,G.garden.hp-a);G.shake=Math.max(G.shake,.1);if(Math.random()<.3)burst(t.x,1.6,t.z,0x7aff9a,3,3,3);return}
  if(t.me)hurtMe(a,fx);else Net.event('dmg',{to:t.id,a,fx})}
-function nextWave(){G.wave++;G.state='wave';qMax('wave',G.wave);const D=DIFFS[G.diff],w=G.wave,np=Net.on?Net.count():1,mult=1+(w-1)*.11;let n=Math.floor((6+w*3.0)*D.cnt*(1+.5*(np-1)));const q=[];
+function nextWave(){G.wave++;G.state='wave';qMax('wave',G.wave);const D=DIFFS[G.diff],w=G.wave,np=Net.on?Net.count():1,mult=1+(w-1)*.11;let n=Math.floor((6+w*3.0)*D.cnt*(1+.5*(np-1))*(1+Math.min(.5,.025*((G.plvl||1)-1))));const q=[];
 if(w%5===0){q.push('boss');n=Math.floor(n*.5)}
 for(let i=0;i<n;i++){const r=Math.random();let t='normal';if(w>=2&&r<.25)t='runner';if(w>=3&&r<.4&&r>=.25)t='helmet';if(w>=4&&r<.52&&r>=.4)t='gunner';if(w>=5&&r<.64&&r>=.52)t='armored';if(w>=6&&r<.04+w*.005)t='giant';q.push(t)}
 G.spawnQ=q;G.spT=0;
 if(G.gm==='ops'&&w>=G.maxW){startFinal();banner('ONDATA FINALE · ×'+mult.toFixed(1))}
 else banner('ONDATA '+w+(G.gm==='ops'?' / '+G.maxW:'')+(w>1?' · ×'+mult.toFixed(1):''));
-toast('Nemici: '+q.length+' · forza ×'+mult.toFixed(1));
+toast('Nemici: '+q.length+' · forza ×'+mult.toFixed(1)+' · Lv '+G.plvl);
 if(P.out||P.down>0)respawnMe()}
 function hostSim(dt){if(G.over||G.tut)return;const tg=targets();
 const team=Net.on?Net.count():1,D=DIFFS[G.diff],alive=G.zombies.filter(z=>!z.dead).length,cap=22+4*(team-1)+(G.bound>60?10:0);
@@ -1008,7 +1013,7 @@ $('#cross').style.opacity=(fp||HEROES[S.hero].kind==='gun'||locked()||lookHeld)?
 
 /* ================= FLUSSO PARTITA ================= */
 function startGame(c){initAudio();clearMenuHero();stopGame(true);
-Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0});
+Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0});
 G.started=0;if(c.map==='random'&&!c.online)G.map=G.map;else if(c.online)G.map=c.map;
 rebuildEnv();
 if(G.gm==='ops'){const mhp=1500;G.garden={x:0,z:0,hp:mhp,mhp,model:mkGarden()};scene.add(G.garden.model);G.obst=G.obst.concat([{x:0,z:0,r:.8}])}
@@ -1029,7 +1034,7 @@ $('#down').classList.remove('on');$('#revhint').classList.remove('on');$('#tutbo
 clearLock();I.atk=false;I.rev=false;I.jump=false;I.jx=I.jz=0;persist(true)}
 function gameOver(d){if(G.over)return;G.over=true;clearLock();$('#zone').classList.remove('on');$('#gb').classList.add('hidden');$('#down').classList.remove('on');$('#revhint').classList.remove('on')
 const win=!!(d&&d.win);
-if(win){S.coins+=200;S.xp+=300;G.coinsEarned+=200}
+if(win){S.coins+=200;addXp(300);G.coinsEarned+=200}
 $('#otitle').textContent=win?'🌻 VITTORIA!':(d&&d.wipe)?(G.online?'💀 Squadra annientata':'💀 Sei caduto'):(d&&d.garden)?'🌻 Giardino distrutto':'💀 Round perso';
 let h='';
 if(win)h+=(d&&d.zone)?'<p>Hai resistito 2 minuti nella zona finale! +200 🪙 +300 XP</p>':'<p>Hai difeso il Giardino fino all\'ultima ondata. +200 🪙 +300 XP</p>';
@@ -1102,9 +1107,11 @@ $('#mset').onclick=openSettings;
 function buy(price){if(S.coins<price){toast('Monete insufficienti');return false}S.coins-=price;return true}
 const hexDot=c=>'<span class="sw" style="background:#'+c.toString(16).padStart(6,'0')+'"></span>';
 function openShop(tab='stili',hs){hs=hs||S.hero;
-const tabs=[['stili','🎭 Stili'],['powers','⚡ Poteri'],['helm','⛑ Elmi'],['armor','🛡 Armature'],['trail','✨ Scie']];
+const tabs=[['speed','🏃 Velocità'],['stili','🎭 Stili'],['powers','⚡ Poteri'],['helm','⛑ Elmi'],['armor','🛡 Armature'],['trail','✨ Scie']];
 let h='<div class="tabs">'+tabs.map(t=>`<span class="tab ${tab===t[0]?'on':''}" data-a="stab" data-id="${t[0]}">${t[1]}</span>`).join('')+'</div><p>🪙 '+S.coins+'</p>';
-if(tab==='stili'){
+if(tab==='speed'){const lv=spdLv(),max=lv>=SPD_MAX,cost=max?0:spdCost(lv),H0=heroStat();
+h+=`<div class="it"><b>🏃 Corsa · Velocità</b><span>Livello <b>${lv}/${SPD_MAX}</b> · bonus attuale <b>+${Math.round(lv*SPD_STEP*100)}%</b> · ogni livello <b>+${Math.round(SPD_STEP*100)}%</b></span><span>Velocità in partita: <b>${(H0.spd*spdMult()).toFixed(2)}</b> (base ${H0.spd.toFixed(2)})</span><span>${max?'Potenziamento completato':`Prossimo livello: <b>🪙 ${cost}</b> · ogni acquisto costa il <b>28%</b> in più del precedente`}</span>${max?'<button class="btn sm" disabled>✔ Al massimo</button>':`<button class="btn sm" data-a="bspd">Potenzia 🪙${cost}</button>`}</div><p class="small">Le monete arrivano da zombie, ondate completate e <b>livelli raggiunti</b>: ogni nuovo livello regala monete. Il bonus vale per qualsiasi eroe, in solo e online.</p>`}
+else if(tab==='stili'){
 h+='<div class="tabs" style="max-height:130px;overflow:auto">'+Object.keys(HEROES).map(id=>`<span class="tab ${hs===id?'on':''}" data-a="sskinhero" data-id="${id}">${S.heroes.includes(id)?'':'🔒 '}${HEROES[id].n}</span>`).join('')+'</div>';
 const HH=HEROES[hs],skins=SKINS[hs],eqId=(S.eqSkin[hs]||skins[0].id),accN=['','Berretto','Bandana','Corona','Visore','Corna'];
 h+='<p class="small">Aspetto di <b>'+HH.n+'</b> — cambia colori, accessorio ed effetti visivi (proiettili, abilita e scia).</p><div class="grid">';
@@ -1120,7 +1127,8 @@ acts.sskinuse=id=>{S.eqSkin[hs]=id;persist();sfx('coin');if(hs===S.hero)makeMenu
 acts.sskinbuy=id=>{const sk=SKINS[hs].find(x=>x.id===id);if(!sk)return;if(buy(sk.price)){S.skins.push(id);S.eqSkin[hs]=id;persist(true);sfx('coin');if(hs===S.hero)makeMenuHero();openShop('stili',hs)}};
 acts.bpow=id=>{const p=POWERS.find(x=>x.id===id);if(buy(p.price)){S.powers.push(id);persist(true);sfx('coin');barItems=abilityBar();openShop('powers',hs)}};
 acts.bitem=id=>{if(buy(ITEMS[id].price)){S.items.push(id);persist(true);sfx('coin');openShop(['helm','armor','trail'][{h:0,a:1,t:2}[id[0]]],hs)}}}
-$('#mshop').onclick=()=>{initAudio();openShop('stili')};
+acts.bspd=()=>{const lv=spdLv();if(lv>=SPD_MAX){toast('Velocità già al massimo');return}if(buy(spdCost(lv))){S.spd=lv+1;persist(true);sfx('coin');toast('🏃 Velocità +'+Math.round(SPD_STEP*100)+'% · livello '+(lv+1)+'/'+SPD_MAX);openShop('speed')}};
+$('#mshop').onclick=()=>{initAudio();openShop('speed')};
 /* ---- Personalizza ---- */
 function openCust(){let h='';
 h+=`<h3>Stile — ${HEROES[S.hero].n}</h3><div class="row" style="flex-wrap:wrap">`;
@@ -1140,11 +1148,11 @@ acts.hsel=id=>{S.hero=id;persist();makeMenuHero();barItems=abilityBar();openHero
 $('#mheroes').onclick=openHeroes;
 /* ---- Incarichi ---- */
 function openQuests(){let h='';for(const q of QUESTS){const v=Math.min(q.g,S.q[q.k]||0),done=v>=q.g,cl=S.qc[q.id];h+=`<div class="lob"><div style="flex:1"><b>${q.n}</b><div class="prog"><i style="width:${v/q.g*100}%"></i></div><span class="small">${v}/${q.g} · ✨${q.xp} XP · 🪙${q.c}${q.item?' · 🎁 '+ITEMS[q.item].n:''}</span></div>${cl?'<button class="btn sm" disabled>✔</button>':done?`<button class="btn sm" data-a="qc" data-id="${q.id}">Riscuoti</button>`:'<button class="btn sm" disabled>…</button>'}</div>`}
-openModal('📜 Incarichi',h);acts.qc=id=>{const q=QUESTS.find(x=>x.id===id);S.qc[id]=1;S.xp+=q.xp;S.coins+=q.c;if(q.item&&!S.items.includes(q.item))S.items.push(q.item);persist(true);sfx('coin');toast('Ricompensa ottenuta!');openQuests()}}
+openModal('📜 Incarichi',h);acts.qc=id=>{const q=QUESTS.find(x=>x.id===id);S.qc[id]=1;addXp(q.xp);S.coins+=q.c;if(q.item&&!S.items.includes(q.item))S.items.push(q.item);persist(true);sfx('coin');toast('Ricompensa ottenuta!');openQuests()}}
 $('#mquest').onclick=openQuests;
 
 /* ---- Gioca solo ---- */
-function openSolo(){openModal('⚔️ Gioca Solo',`<div class="card" style="width:auto"><label>Modalità</label><select id="sg">${GMODES.map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="sm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Difficoltà</label><select id="sd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><button class="btn red" id="sgo">▶ Inizia</button></div>`);
+function openSolo(){openModal('⚔️ Gioca Solo',`<div class="card" style="width:auto"><label>Modalità</label><select id="sg">${GMODES.map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="sm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Difficoltà</label><select id="sd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><p class="small">La difficoltà cresce con il tuo livello (ora <b>Lv ${lvlInfo(S.xp).l}</b>): zombie più resistenti, forti e numerosi.</p><button class="btn red" id="sgo">▶ Inizia</button></div>`);
 $('#sgo').onclick=()=>{const m=$('#sm').value,d=+$('#sd').value,gm=$('#sg').value;leaveLobby();closeModal();startGame({online:false,host:true,map:m==='random'?anyMap():m,diff:d,gm,seed:Math.floor(Math.random()*1e6)})}}
 $('#mplay').onclick=()=>{initAudio();openSolo()};
 $('#mtut').onclick=()=>{initAudio();startTutorial()};
