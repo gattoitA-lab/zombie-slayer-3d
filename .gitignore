@@ -1,0 +1,8 @@
+# Artefatti locali di sviluppo/test
+.tmpcheck/
+.cloud-attachments/
+screenshots/
+
+# Sistema
+.DS_Store
+Thumbs.db
