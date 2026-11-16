@@ -247,12 +247,12 @@ const angLerp=(a,b,t)=>{let d=((b-a+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-
 const DIFFS=[{n:'Facile',hp:.7,dmg:.7,cnt:.8,coin:.8},{n:'Medio',hp:1,dmg:1,cnt:1,coin:1},{n:'Difficile',hp:1.4,dmg:1.3,cnt:1.3,coin:1.4},{n:'Estremo',hp:2,dmg:1.7,cnt:1.7,coin:2},{n:'PAZZO 🔥',hp:3.2,dmg:2.4,cnt:2.2,coin:3.5}];
 const MAPS=[['village','Villaggio'],['forest','Foresta'],['ruins','Rovine'],['suburb','Quartiere (enorme)'],['desert','Città del Deserto (enorme)'],['random','Casuale']];
 const ARENA_PRESETS={
- open:{n:'Arena aperta',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000'},
- maze:{n:'Labirinto',rows:'00000000000/00111011100/00100000100/00101110100/00001000100/01111011110/00001000000/00111110111/00100000100/00111011100/00000000000'},
- cross:{n:'Croce',rows:'00000000000/00000100000/00000100000/00000100000/00000100000/11111111111/00000100000/00000100000/00000100000/00000100000/00000000000'},
- pillars:{n:'Pilastri',rows:'11000000011/11000000011/00001100000/00001100000/00000000110/00000000110/01100000000/01100000000/00000011000/00000011000/11000000011'}
+ open:{n:'Ponte aperto',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00011111000/00110001100/11111111111'},
+ maze:{n:'Isole',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00110001100/00001110000/00100000100/00011111000/11111111111'},
+ cross:{n:'Croce',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00011111000/00100000100/00011111000/11111111111'},
+ pillars:{n:'Torri',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00110001100/00100000100/00001110000/00100000100/11111111111'}
 };
-const ARENA_N=11,ARENA_CELL=5;
+const ARENA_N=11,ARENA_CELL=5,ARENA_LEVEL=2.6;
 const arenaGrid=v=>{if(!v)return null;const r=String(v).split('/');return r.length===ARENA_N?r.map(x=>(x+'00000000000').slice(0,ARENA_N)):null};
 const arenaRows=id=>ARENA_PRESETS[id]?.rows||ARENA_PRESETS.open.rows;
 const BIGMAPS=['suburb','desert'];
@@ -637,36 +637,38 @@ for(let i=0;i<nl;i++){const l=ld[i];l.y-=l.v*dt;l.x+=Math.sin(t*.8+l.ph)*.8*dt+.
 let x=l.x+cx,z=l.z+cz;dm.position.set(x,l.y,z);dm.rotation.set(t*l.rs+l.ph,t*l.rs*.7,0);dm.scale.setScalar(1);dm.updateMatrix();lv.setMatrixAt(i,dm.matrix)}lv.instanceMatrix.needsUpdate=true}}}
 function rebuildEnv(){if(ENV){scene.remove(ENV.grp);ENV.grp.traverse(o=>{if(o.geometry&&o.geometry!==BOX&&o.geometry!==grassGeo)o.geometry.dispose()})}
 const pl=G.mode==='play';ENV=buildEnv(pl?G.map:'village',pl?G.seed:7,!pl);G.obst=ENV.obst;G.bound=ENV.bound||44}
-function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];G.structs=[]}
+function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];G.structs=[];G.plats=[];if(ENV)ENV.grp.visible=true}
 function buildArena(){
  if(!G.mode2d)return;
- const rows=arenaGrid(G.arena)||arenaRows(G.arenaPreset).split('/'),off=(ARENA_N-1)*ARENA_CELL/2,grp=new THREE.Group(),mat=MT(0x5a6a55,{roughness:.82});
- G.structs=[];G.arenaGroup=grp;scene.add(grp);
+ const rows=arenaGrid(G.arena)||arenaRows(G.arenaPreset).split('/'),off=(ARENA_N-1)*ARENA_CELL/2,grp=new THREE.Group();
+ G.structs=[];G.plats=[];G.arenaGroup=grp;scene.add(grp);
+ const sky=new THREE.Mesh(new THREE.PlaneGeometry(160,90),new THREE.MeshBasicMaterial({color:0x8bd7ff}));sky.position.set(0,20,-30);grp.add(sky);
+ const sea=new THREE.Mesh(new THREE.PlaneGeometry(160,34),new THREE.MeshBasicMaterial({color:0x2d84bb}));sea.position.set(0,-9,-29.8);grp.add(sea);
+ const cloudMat=MT(0xffffff,{roughness:1});
+ for(const [cx,cy,cs] of [[-22,24,1.6],[4,31,2.1],[26,22,1.3]])for(let i=-1;i<=1;i++){const cl=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,7),cloudMat);cl.position.set(cx+i*1.5,cy+Math.abs(i)*.3,-26);cl.scale.set(cs*1.7,cs*.55,cs*.5);grp.add(cl)}
  rows.forEach((row,r)=>[...row].forEach((ch,c)=>{
   if(ch!=='1')return;
-  const x=-off+c*ARENA_CELL,z=-off+r*ARENA_CELL;
-  if(Math.hypot(x-10,z+2)<6||Math.hypot(x+10,z-2)<6||Math.hypot(x,z)<4)return;
-  const mesh=bx(grp,ARENA_CELL*.8,2.4,ARENA_CELL*.8,mat,x,1.2,z);mesh.castShadow=true;mesh.receiveShadow=true;
-  const obst={x,z,r:ARENA_CELL*.45,struct:true};G.obst.push(obst);
-  G.structs.push({id:G.structs.length,x,z,r:obst.r,hp:100,mesh,obst,dead:false})
+  const x=-off+c*ARENA_CELL,base=(ARENA_N-1-r)*ARENA_LEVEL,ground=r===ARENA_N-1;
+  const mesh=bx(grp,ARENA_CELL*1.02,.8,6,ground?MT(0xb43b2c,{roughness:.78}):MT(0x4f8a4f,{roughness:.8}),x,base+.4,0);mesh.castShadow=true;mesh.receiveShadow=true;
+  const pl={x,y:base+.8,z:0,w:ARENA_CELL*1.02,h:.8,ground};G.plats.push(pl);
+  G.structs.push({id:G.structs.length,x,z:0,y:pl.y,baseY:base+.4,w:pl.w,h:.8,hp:100,mesh,pl,ground,dead:false})
  }));
+ G.bound=off+ARENA_CELL;if(ENV)ENV.grp.visible=false;
 }
 function destroyStruct(s,remote){
- if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const i=G.obst.indexOf(s.obst);if(i>=0)G.obst.splice(i,1);burst(s.x,1.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(G.destructFloor)breakFloor(s.x,s.z,2.4,remote);if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
+ if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const pi=G.plats?.indexOf(s.pl);if(pi>=0)G.plats.splice(pi,1);burst(s.x,(s.y||0)+.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
 }
-function damageStructs(x,z,r,dmg){
+function damageStructs(x,z,r,dmg,y){
  if(!G.mode2d||!G.destructStruct||!G.structs?.length)return;
- for(const s of G.structs){if(s.dead)continue;if(Math.hypot(s.x-x,s.z-z)>r+s.r)continue;
-  s.hp-=dmg;s.mesh.scale.y=Math.max(.18,s.hp/100);s.mesh.position.y=1.2*(s.hp/100);
+ for(const s of G.structs){if(s.dead||(s.ground&&!G.destructFloor))continue;if(Math.hypot(s.x-x,s.z-z)>r+s.w/2)continue;if(y!=null&&Math.abs(s.y-y)>r+1.6)continue;
+  s.hp-=dmg;const sc=Math.max(.18,s.hp/100);s.mesh.scale.y=s.h*sc;s.mesh.position.y=s.baseY+(s.h-s.h*sc)/2;
   if(s.hp<=0)destroyStruct(s,false)
  }
 }
-function breakFloor(x,z,r,remote){
- if(!G.mode2d||!G.destructFloor)return;
- if((G.holes||[]).some(h=>Math.hypot(h.x-x,h.z-z)<1.5))return;
- if(G.holes.length>28){const old=G.holes.shift();scene.remove(old.m)}
- const m=new THREE.Mesh(new THREE.CircleGeometry(r,24),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.9,depthWrite:false}));
- m.rotation.x=-Math.PI/2;m.position.set(x,.11,z);scene.add(m);G.holes.push({x,z,r,m});burst(x,.25,z,0x4a3a2a,10,3,4);if(!remote&&G.pvp&&Net.on)Net.event('hole',{x:+x.toFixed(2),z:+z.toFixed(2),r:+r.toFixed(2)})
+function breakFloor(x,z,r,remote,y){
+ if(!G.mode2d||!G.destructFloor||(y!=null&&y>4))return;
+ const target=(G.structs||[]).find(s=>s.ground&&!s.dead&&Math.abs(s.x-x)<=r+(s.w||0)/2);
+ if(target)destroyStruct(target,remote);
 }
 
 /* ================= MODELLI ================= */
@@ -770,7 +772,7 @@ this.h.publish({sid:this.sid,s:this.state,ev:this.evq,ts:n});this.force=false},
 count(){return 1+Object.keys(this.peers).length}};
 
 /* ================= STATO DI GIOCO ================= */
-const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],holes:[],arenaGroup:null};
+const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],plats:[],holes:[],arenaGroup:null};
 const P={x:0,y:0,z:0,vy:0,face:0,hp:100,mhp:100,burn:0,poison:0,shieldT:0,swingT:9,swingHit:true,atk:0,cd:{},fireT:0,fireTick:0,fireCol:0xff7a1a,mv:0,sw:0,kx:0,kz:0,rd:0,rt:0,recoil:0,hatOut:false,model:null,down:0,out:false,inv:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null};
 const rev={tgt:null,p:0,cool:0};
 const cam={yaw:0,pitch:.35,dist:5};
@@ -793,7 +795,7 @@ function gainCoins(n,wx,wy,wz){n=Math.round(n);if(!n)return;S.coins+=n;const pla
 function levelUpFX(l,coins){const box=$('#levelup');if(!box)return;box.querySelector('.lvl').textContent=l;box.querySelector('.lvc').textContent='+🪙 '+coins+' monete';box.classList.remove('on');void box.offsetWidth;box.classList.add('on');const conf=box.querySelector('.conf');conf.innerHTML='';for(let i=0;i<30;i++){const s=document.createElement('span');s.textContent=['🪙','✨','⭐','💫'][i%4];s.style.fontSize=(14+Math.random()*20)+'px';s.style.left='50%';s.style.top='46%';conf.appendChild(s);const a=Math.random()*6.283,d=120+Math.random()*300;s.animate([{transform:'translate(-50%,-50%) scale(.3) rotate(0deg)',opacity:1},{transform:`translate(calc(-50% + ${Math.cos(a)*d}px),calc(-50% + ${Math.sin(a)*d-50}px)) scale(1.1) rotate(${(Math.random()-.5)*600}deg)`,opacity:0}],{duration:950+Math.random()*650,delay:Math.random()*120,easing:'cubic-bezier(.15,.6,.3,1)'}).onfinish=()=>s.remove()}const tgt=G.mode==='play'?$('#hcoins'):$('#tcoin');if(tgt){tgt.classList.remove('pop');void tgt.offsetWidth;tgt.classList.add('pop')}if(G.mode==='play')G.shake=Math.max(G.shake,.18);sfx('levelup');clearTimeout(levelUpFX.t);levelUpFX.t=setTimeout(()=>box.classList.remove('on'),2200)}
 
 /* ---- Morte, rianimazione e rientro ---- */
-const spawnPoint=()=>{if(G.pvp){const t=G.teams?.[Net.id]??0;return{x:t?10:-10,z:t?-2:2}}return{x:0,z:G.gm==='ops'?5.5:0}};
+const spawnPoint=()=>{if(G.mode2d)return{x:G.pvp?((G.teams?.[Net.id]??0)?12:-12):0,z:0,y:1.2};if(G.pvp){const t=G.teams?.[Net.id]??0;return{x:t?10:-10,z:t?-2:2}}return{x:0,z:G.gm==='ops'?5.5:0}};
 function mkGarden(){
 const g=new THREE.Group(),stem=MT(0x3f8f3f),leafM=MT(0x2f7a35),petal=MT(0xffb020,{emissive:0xff9900,emissiveIntensity:.4});
 bx(g,.55,2.3,.55,stem,0,1.15,0).castShadow=true;
@@ -873,7 +875,7 @@ function towerRevive(){
 function downPlayer(){if(P.hp>0)return;P.down=10;P.out=false;P.reWait=0;P.burn=0;P.poison=0;P.shieldT=0;P.fireT=0;P.atk=0;P.hatOut=false;I.atk=false;I.gatk=false;rev.p=0;sfx('die');banner('💀 Sei a terra!');updateLockHint()}
 function outPlayer(){P.down=0;P.out=true;P.hp=0;P.atk=0;I.atk=false;I.gatk=false;toast('Nessuno ti ha rianimato!')}
 function reviveMe(){P.hp=Math.max(1,P.mhp*.5);P.down=0;P.out=false;P.reWait=0;P.inv=2.5;P.burn=0;P.poison=0;P.kx=P.kz=0;P.vy=0;rev.p=0;$('#down').classList.remove('on');banner('💚 Rianimato!');sfx('power');persist()}
-function respawnMe(){const sp=spawnPoint();Object.assign(P,{hp:Math.max(1,P.mhp*.5),down:0,out:false,reWait:0,inv:2.5,burn:0,poison:0,x:sp.x,z:sp.z,y:0,vy:0,kx:0,kz:0});rev.p=0;$('#down').classList.remove('on');banner('Sei tornato in gioco')}
+function respawnMe(){const sp=spawnPoint();Object.assign(P,{hp:Math.max(1,P.mhp*.5),down:0,out:false,reWait:0,inv:2.5,burn:0,poison:0,x:sp.x,z:sp.z,y:sp.y||0,vy:0,kx:0,kz:0});rev.p=0;$('#down').classList.remove('on');banner('Sei tornato in gioco')}
 function findRevive(){if(!Net.on||G.pvp||P.hp<=0||P.out)return null;let best=null,bd=3.8;
  for(const id in Net.peers){const s=Net.peers[id].doc.s;if(!s||!s.ing||!(s.dn>0))continue;const d=Math.hypot(s.x-P.x,s.z-P.z);if(d<bd){bd=d;best={id,s}}}
  return best}
@@ -937,33 +939,33 @@ Net.hook=(id,doc)=>{if(G.mode!=='play'||G.host||!LOBBY||id!==LOBBY.hostId||!doc.
 function hurtMe(a,fx){if(P.hp<=0||P.shieldT>0||P.inv>0||G.mode!=='play')return;P.hp-=a;if(hapticFn)hapticFn('hurt');sfx('hurt');$('#dmgfx').style.opacity=.8;setTimeout(()=>$('#dmgfx').style.opacity=0,200);G.shake=Math.max(G.shake,.25);
 if(fx==='fire'){P.burn=5;P.vy=9;P.rt=0;toast('🔥 In fiamme! Controlli impazziti!')}if(fx==='poison'){P.poison=8;P.vy=9;P.kx=(Math.random()-.5)*6;P.kz=(Math.random()-.5)*6;toast('☠️ Avvelenato!')}
 if(P.hp<=0){P.hp=0;if(G.pvp)pvpKO();else downPlayer()}}
-function projMesh(col,size){const m=new THREE.Mesh(new THREE.SphereGeometry(size||.12,8,6),new THREE.MeshBasicMaterial({color:col}));m.userData.own=1;m.position.set(P.x,1.35,P.z);scene.add(m);return m}
+function projMesh(col,size){const m=new THREE.Mesh(new THREE.SphereGeometry(size||.12,8,6),new THREE.MeshBasicMaterial({color:col}));m.userData.own=1;m.position.set(P.x,1.35+(G.mode2d?P.y:0),P.z);scene.add(m);return m}
 function shootBullet(n,spread,col,dmg,pierce,spd,size){
  const base=P.face;spd=spd||42;size=size||.12;
  for(let i=0;i<n;i++){const off=n>1?(i/(n-1)-.5)*spread*2:0,a=base+off+(n>1?0:(Math.random()-.5)*spread*2);
   const m=projMesh(col,size);
-  PR.push({k:'b',m,x:P.x+Math.sin(base)*.8,y:1.35,z:P.z+Math.cos(base)*.8,vx:Math.sin(a)*spd,vz:Math.cos(a)*spd,l:.9*(spd/42)+.15,d:dmg,pierce:pierce||0,hit:new Set(),col,size})}}
+  PR.push({k:'b',m,x:P.x+Math.sin(base)*.8,y:1.35+(G.mode2d?P.y:0),z:P.z+Math.cos(base)*.8,vx:Math.sin(a)*spd,vz:Math.cos(a)*spd,l:.9*(spd/42)+.15,d:dmg,pierce:pierce||0,hit:new Set(),col,size})}}
 function laserShot(dmg,col,range){
  range=range||60;const dx=Math.sin(P.face),dz=Math.cos(P.face),hits=[];
  for(const z of G.zombies){if(z.dead)continue;const rx=z.x-P.x,rz=z.z-P.z,pr=rx*dx+rz*dz;if(pr<0||pr>range)continue;const pd=Math.abs(rx*dz-rz*dx);if(pd<.85*ZT[z.type].scale+.35)hits.push({z,pr})}
  hits.sort((a,b)=>a.pr-b.pr);
  for(const h of hits)sendHit(h.z,dmg,dx*2,dz*2,col);
  if(G.pvp)for(const e of pvpEnemies()){const rx=e.x-P.x,rz=e.z-P.z,pr=rx*dx+rz*dz;if(pr<0||pr>range)continue;const pd=Math.abs(rx*dz-rz*dx);if(pd<.95)hurtPlayer(e.id,dmg,dx*2,dz*2)}
- if(G.mode2d&&G.destructStruct)damageStructs(P.x+dx*2,P.z+dz*2,2,dmg);
+ if(G.mode2d&&G.destructStruct)damageStructs(P.x+dx*2,P.z+dz*2,2,dmg,P.y+1);
  const geo=new THREE.CylinderGeometry(.055,.055,range,6),mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false});
- const beam=new THREE.Mesh(geo,mat);beam.position.set(P.x+dx*range/2,1.35,P.z+dz*range/2);beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(dx,0,dz));scene.add(beam);
+ const beam=new THREE.Mesh(geo,mat);beam.position.set(P.x+dx*range/2,1.35+(G.mode2d?P.y:0),P.z+dz*range/2);beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(dx,0,dz));scene.add(beam);
  fxs.push({m:beam,t:0,d:.16,f:p=>{beam.material.opacity=.9*(1-p)}});
  burst(P.x+dx*1.4,1.35,P.z+dz*1.4,col,4,3,2)}
 function flameShot(dmg,col){
  for(let i=0;i<2;i++){const a=P.face+(Math.random()-.5)*.5,m=projMesh(col,.2+Math.random()*.12);m.material.transparent=true;m.material.opacity=.85;m.material.blending=THREE.AdditiveBlending;m.material.depthWrite=false;
-  m.position.set(P.x+Math.sin(a)*1.1,1.3,P.z+Math.cos(a)*1.1);
-  PR.push({k:'flame',m,x:m.position.x,y:1.3,z:m.position.z,vx:Math.sin(a)*17,vz:Math.cos(a)*17,l:.42,d:dmg,hit:new Set(),col})}}
+  m.position.set(P.x+Math.sin(a)*1.1,1.3+(G.mode2d?P.y:0),P.z+Math.cos(a)*1.1);
+   PR.push({k:'flame',m,x:m.position.x,y:m.position.y,z:m.position.z,vx:Math.sin(a)*17,vz:Math.cos(a)*17,l:.42,d:dmg,hit:new Set(),col})}}
 function spawnRocket(dmg,col,ang,spd){
  const a=ang===undefined?P.face:ang;spd=spd||26;const m=projMesh(col,.2);
- PR.push({k:'rocket',m,x:P.x+Math.sin(P.face)*.9,y:1.35,z:P.z+Math.cos(P.face)*.9,vx:Math.sin(a)*spd,vz:Math.cos(a)*spd,l:2.2,d:dmg,hit:new Set(),col})}
+ PR.push({k:'rocket',m,x:P.x+Math.sin(P.face)*.9,y:1.35+(G.mode2d?P.y:0),z:P.z+Math.cos(P.face)*.9,vx:Math.sin(a)*spd,vz:Math.cos(a)*spd,l:2.2,d:dmg,hit:new Set(),col})}
 function pvpAimAngle(){let b=null,bd=1e9;for(const e of pvpEnemies()){const d=Math.hypot(e.x-P.x,e.z-P.z);if(d<bd){bd=d;b=e}}return b?Math.atan2(b.x-P.x,b.z-P.z):P.face}
 function doAttack(){const H=heroStat(),col=fxCol(),dm=dmgNow(),k=H.kind;P.atk=H.rate*(P.rapid>0?.55:1);P.face=G.mode2d?pvpAimAngle():cam.yaw;
-if(G.mode2d){const ax=P.x+Math.sin(P.face)*1.5,az=P.z+Math.cos(P.face)*1.5;if(G.destructStruct)damageStructs(ax,az,3,dm);if(G.destructFloor&&performance.now()-(doAttack.fT||0)>650){doAttack.fT=performance.now();breakFloor(ax,az,2.3)}}
+if(G.mode2d){const ax=P.x+Math.sin(P.face)*1.5,az=P.z+Math.cos(P.face)*1.5,ay=P.y+1;if(G.destructStruct)damageStructs(ax,az,3,dm,ay);if(G.destructFloor&&performance.now()-(doAttack.fT||0)>650){doAttack.fT=performance.now();breakFloor(ax,az,2.3,false,ay)}}
 if(k==='sword'||k==='spear'||k==='hammer'){P.swingT=0;P.swingHit=false;P.sw++;sfx(k==='hammer'?'boom':'swing')}
 else if(k==='gun'){shootBullet(1,0,col,dm);P.recoil=.4;P.sw++;sfx('shoot')}
 else if(k==='smg'){shootBullet(1,.05,col,dm);P.recoil=.16;P.sw++;sfx('shoot')}
@@ -976,7 +978,7 @@ function sendHit(z,d,kx,kz,col){if(G.host)applyDamage(z,d,Net.id,kx,kz);else{Net
 let barItems=[];
 function abilityBar(){const H=HEROES[S.hero],a=(H.ab||[]).map(k=>({...ABIL[k],id:k,key:S.hero+'.'+k}));
 const ps=S.powers.map(id=>{const p=POWERS.find(x=>x.id===id);return p?{...p,key:'pw.'+id}:null}).filter(Boolean);return a.concat(ps)}
-function aoeHit(cx,cz,r,dmg,k,col){if(G.mode2d){if(G.destructStruct)damageStructs(cx,cz,r+1,dmg*1.5);if(G.destructFloor)breakFloor(cx,cz,Math.max(2.2,r*.55))}for(const z of G.zombies){if(z.dead)continue;const dx=z.x-cx,dz=z.z-cz,d=Math.hypot(dx,dz),rr=r+ZT[z.type].scale*.5;if(d<rr)sendHit(z,dmg,dx/(d||1)*k,dz/(d||1)*k,col)}if(G.pvp)for(const e of pvpEnemies()){const dx=e.x-cx,dz=e.z-cz,d=Math.hypot(dx,dz);if(d<r+1)hurtPlayer(e.id,dmg,dx/(d||1)*k,dz/(d||1)*k)}burst(cx,.6,cz,col||0xffaa33,18,8,6)}
+function aoeHit(cx,cz,r,dmg,k,col){if(G.mode2d){if(G.destructStruct)damageStructs(cx,cz,r+1,dmg*1.5,P.y+1);if(G.destructFloor)breakFloor(cx,cz,Math.max(2.2,r*.55),false,P.y+1)}for(const z of G.zombies){if(z.dead)continue;const dx=z.x-cx,dz=z.z-cz,d=Math.hypot(dx,dz),rr=r+ZT[z.type].scale*.5;if(d<rr)sendHit(z,dmg,dx/(d||1)*k,dz/(d||1)*k,col)}if(G.pvp)for(const e of pvpEnemies()){const dx=e.x-cx,dz=e.z-cz,d=Math.hypot(dx,dz);if(d<r+1)hurtPlayer(e.id,dmg,dx/(d||1)*k,dz/(d||1)*k)}burst(cx,.6,cz,col||0xffaa33,18,8,6)}
 function useSlot(i){const a=barItems[i]||abilityBar()[i];if(!a||G.mode!=='play'||P.hp<=0||(P.cd[a.key]||0)>0)return;
 P.cd[a.key]=a.cd||1;sfx('power');qAdd('pow',1);P.cast={t:.55,dur:.55,kind:({spin:'spin',dash:'dash',roll:'dash',slam:'slam',quake:'slam',blast:'slam',inferno:'slam',kick:'slam',volley:'shoot',shuriken:'shoot',barrage:'shoot',pierce:'shoot',hats:'shoot',heal:'buff',regen:'buff',aegis:'buff',shield:'buff',freeze:'buff',smoke:'buff',bolt:'buff',fury:'rage',firewall:'rage',fire:'rage'})[a.id]||'buff'};
 const H=heroStat(),col=fxCol(),dm=dmgNow(),R=a.r||5;
@@ -1008,6 +1010,8 @@ case 'shield':P.shieldT=6;P.hp=Math.min(P.mhp,P.hp+25);fxAt('shield',P.x,P.z,0x6
 }}
 function usePower(i){useSlot(i)}
 function pushOut(o,r){for(const b of G.obst){const dx=o.x-b.x,dz=o.z-b.z,d=Math.hypot(dx,dz),m=b.r+r;if(d<m&&d>.001){o.x=b.x+dx/d*m;o.z=b.z+dz/d*m}}const B=G.bound||44,d=Math.hypot(o.x,o.z);if(d>B){o.x*=B/d;o.z*=B/d}}
+function sidePushOut(o){o.x=clamp(o.x,-(G.bound||28),G.bound||28);o.z=0}
+function sideLand(prevY){let land=null;for(const pl of G.plats||[])if(P.vy<=0&&P.x>=pl.x-pl.w/2-.35&&P.x<=pl.x+pl.w/2+.35&&prevY>=pl.y-.12&&P.y<=pl.y){if(!land||pl.y>land.y)land=pl}return land}
 function updatePlayer(dt){const H=heroStat();if(G.mode2d)cam.yaw=Math.PI;
 for(const k of ['candyStr','candySpd','candyHp','candyPoison','candyStorm'])if(P[k]>0){P[k]-=dt;if(P[k]<=0){P[k]=0;if(k==='candyHp')P.hp=Math.min(P.hp,H.hp)}}
 P.mhp=H.hp+(P.candyHp>0?60:0);
@@ -1021,7 +1025,7 @@ if(P.hp<=0){
     let dxi=clamp(I.kx+I.jx+I.gkx,-1,1),dzi=clamp(I.kz+I.jz+I.gkz,-1,1);const l0=Math.hypot(dxi,dzi);if(l0>1){dxi/=l0;dzi/=l0}
     const sy0=Math.sin(cam.yaw),cy0=Math.cos(cam.yaw);
     P.x+=((sy0*dzi-cy0*dxi)*1.6+P.kx)*dt;P.z+=((cy0*dzi+sy0*dxi)*1.6+P.kz)*dt;P.kx*=Math.pow(.02,dt);P.kz*=Math.pow(.02,dt);
-    P.face=angLerp(P.face,cam.yaw,Math.min(1,dt*8));pushOut(P,.5);
+    P.face=angLerp(P.face,cam.yaw,Math.min(1,dt*8));if(G.mode2d)sidePushOut(P);else pushOut(P,.5);
     if(P.down<=0)outPlayer();
   }
   return}
@@ -1040,20 +1044,23 @@ if(P.fury>0)P.fury-=dt;if(P.rapid>0)P.rapid-=dt;
 if(P.hp<=0){P.hp=0;if(G.pvp)pvpKO();else downPlayer();return}
 const l=Math.hypot(ix,iz);if(l>1){ix/=l;iz/=l}
 const sy=Math.sin(cam.yaw),cy=Math.cos(cam.yaw),mx=sy*iz-cy*ix,mz=cy*iz+sy*ix,spd=H.spd*spdMult()*(P.candySpd>0?1.45:1)*(P.shieldT>0?1.15:1)*(P.poison>0?.8:1)*(P.fury>0?1.25:1);
-P.x+=mx*spd*dt+P.kx*dt;P.z+=mz*spd*dt+P.kz*dt;P.kx*=Math.pow(.02,dt);P.kz*=Math.pow(.02,dt);P.mv=Math.hypot(mx,mz)*spd;
+if(G.mode2d){P.x+=clamp(ix,-1,1)*spd*dt+P.kx*dt;P.z=0;P.kz=0;P.mv=Math.abs(clamp(ix,-1,1))*spd}else{P.x+=mx*spd*dt+P.kx*dt;P.z+=mz*spd*dt+P.kz*dt;P.mv=Math.hypot(mx,mz)*spd}
+P.kx*=Math.pow(.02,dt);P.kz*=Math.pow(.02,dt);
 if(P.mv>.5){P.stepT=(P.stepT||0)+dt*(.9+P.mv*.08);if(P.stepT>=.38){P.stepT=0;if(hapticFn)hapticFn('step')}}else P.stepT=0;
-P.vy-=26*dt;P.y+=P.vy*dt;let gr=false;if(P.y<=0){P.y=0;P.vy=0;gr=true}if((I.jump||I.gjump)&&gr&&P.burn<=0){P.vy=9}
-pushOut(P,.5);
-if(G.mode2d&&G.holes?.length){for(const h of G.holes)if(Math.hypot(P.x-h.x,P.z-h.z)<h.r){P.hp-=6*dt;P.mv*=.7;break}}
+const prevY=P.y;P.vy-=26*dt;P.y+=P.vy*dt;let gr=false;
+if(G.mode2d){const land=sideLand(prevY);if(land){P.y=land.y;P.vy=0;gr=true}if(P.y<-10){if(G.pvp){P.hp=0;P.y=0;pvpKO();return}const sp=spawnPoint();P.x=sp.x;P.z=0;P.y=sp.y||0;P.vy=0;P.kx=0;P.kz=0}}
+else if(P.y<=0){P.y=0;P.vy=0;gr=true}
+if((I.jump||I.gjump)&&gr&&P.burn<=0){P.vy=G.mode2d?13:9}
+if(G.mode2d)sidePushOut(P);else pushOut(P,.5);
 const fp=cam.dist<.8;if(P.atk>0)P.atk-=dt;
 if((I.atk||I.gatk)&&P.atk<=0)doAttack();
-if(P.mv>.3&&P.atk<=.15&&!fp&&H.kind==='sword')P.face=angLerp(P.face,Math.atan2(mx,mz),Math.min(1,dt*14));else if(fp||H.kind!=='sword'||P.atk>0)P.face=angLerp(P.face,cam.yaw,Math.min(1,dt*18));
+if(G.mode2d){if(P.mv>.3&&P.atk<=.15)P.face=ix>=0?Math.PI/2:-Math.PI/2}else if(P.mv>.3&&P.atk<=.15&&!fp&&H.kind==='sword')P.face=angLerp(P.face,Math.atan2(mx,mz),Math.min(1,dt*14));else if(fp||H.kind!=='sword'||P.atk>0)P.face=angLerp(P.face,cam.yaw,Math.min(1,dt*18));
 const dur=Math.min(.32,H.rate*.8);if(P.swingT<9)P.swingT+=dt;
 const melee=H.kind==='sword'||H.kind==='spear'||H.kind==='hammer';
 if(melee&&!P.swingHit&&P.swingT>dur*.4){P.swingHit=true;const fx=Math.sin(P.face),fz=Math.cos(P.face),col=fxCol(),M={sword:{r:3.3,dot:.25,k:5},spear:{r:5,dot:.72,k:4},hammer:{r:3.8,dot:-1,k:11}}[H.kind];
  for(const z of G.zombies){if(z.dead)continue;const dx=z.x-P.x,dz=z.z-P.z,d=Math.hypot(dx,dz),rr=M.r+ZT[z.type].scale*.5;if(d<rr&&(M.dot<0||(dx*fx+dz*fz)/(d||1)>M.dot))sendHit(z,dmgNow(),dx/(d||1)*M.k,dz/(d||1)*M.k,col)}
  for(const e of pvpEnemies()){const dx=e.x-P.x,dz=e.z-P.z,d=Math.hypot(dx,dz);if(d<M.r&&(M.dot<0||(dx*fx+dz*fz)/(d||1)>M.dot))hurtPlayer(e.id,dmgNow(),dx/(d||1)*M.k,dz/(d||1)*M.k)}
- burst(P.x+fx*1.6,1.1,P.z+fz*1.6,col,H.kind==='hammer'?14:7,5,3)}
+ burst(P.x+fx*1.6,1.1+(G.mode2d?P.y:0),P.z+fz*1.6,col,H.kind==='hammer'?14:7,5,3)}
 if(P.fireT>0){P.fireT-=dt;P.fireTick-=dt;if(P.fireTick<=0){P.fireTick=.5;for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-P.x,z.z-P.z)<5.5)sendHit(z,H.dmg*.7,0,0,P.fireCol);if(G.pvp)for(const e of pvpEnemies())if(Math.hypot(e.x-P.x,e.z-P.z)<5.5)hurtPlayer(e.id,H.dmg*.5,0,0)}burst(P.x+Math.cos(G.t*5)*4,.3,P.z+Math.sin(G.t*5)*4,P.fireCol||0xff7a1a,2,1,3)}
 P.recoil*=Math.pow(.01,dt);
 }
@@ -1061,16 +1068,16 @@ function updProj(dt){for(let i=PR.length-1;i>=0;i--){const p=PR[i];let rm=false;
 if(p.k==='b'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y||1.35,p.z);
  for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.7*ZT[z.type].scale+.25){p.hit.add(z.id);sendHit(z,p.d,p.vx*.1,p.vz*.1,p.col);if(p.pierce>0)p.pierce--;else{rm=true;break}}}
  if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<.85){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.1,p.vz*.1);if(p.pierce>0)p.pierce--;else{rm=true;break}}}
- if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.8,p.d);
+ if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.8,p.d,p.y||1.35);
  if(p.l<=0)rm=true}
 else if(p.k==='flame'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;const kk=Math.max(.15,p.l/.42);p.m.position.set(p.x,p.y,p.z);p.m.scale.setScalar(kk);p.m.material.opacity=.85*kk;
- for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<1.1+ZT[z.type].scale*.4){p.hit.add(z.id);sendHit(z,p.d,p.vx*.05,p.vz*.05,p.col)}}if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.9,p.d*.5)
+ for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<1.1+ZT[z.type].scale*.4){p.hit.add(z.id);sendHit(z,p.d,p.vx*.05,p.vz*.05,p.col)}}if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.9,p.d*.5,p.y||1.35)
  if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<1.2){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.05,p.vz*.05)}}
  if(p.l<=0)rm=true}
 else if(p.k==='rocket'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y,p.z);p.m.rotation.y+=dt*10;
  let hit=false;for(const z of G.zombies){if(z.dead)continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.9*ZT[z.type].scale+.45){hit=true;break}}
  if(G.pvp)for(const e of pvpEnemies()){if(Math.hypot(e.x-p.x,e.z-p.z)<.95){hit=true;break}}
- if(hit||p.l<=0){rm=true;if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,4.5,p.d);if(G.mode2d&&G.destructFloor)breakFloor(p.x,p.z,3);spawnFx('boom',p.x,p.z,p.col);Net.event('fx',{k:'boom',x:p.x,z:p.z,c:p.col});sfx('boom');G.shake=.4;
+ if(hit||p.l<=0){rm=true;if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,4.5,p.d,p.y||1.35);if(G.mode2d&&G.destructFloor)breakFloor(p.x,p.z,3,false,p.y);spawnFx('boom',p.x,p.z,p.col);Net.event('fx',{k:'boom',x:p.x,z:p.z,c:p.col});sfx('boom');G.shake=.4;
   for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-p.x,z.z-p.z)<4.5)sendHit(z,p.d,Math.sin(P.face)*4,Math.cos(P.face)*4,p.col)
   if(G.pvp)for(const e of pvpEnemies())if(Math.hypot(e.x-p.x,e.z-p.z)<4.5)hurtPlayer(e.id,p.d,Math.sin(P.face)*4,Math.cos(P.face)*4)}}
 else if(p.k==='hat'){p.l-=dt;if(!p.ret){p.x+=p.vx*dt;p.z+=p.vz*dt;if(p.l<=0){p.ret=true;p.hit.clear();const c=p.col||0xffaa33;spawnFx('boom',p.x,p.z,c);Net.event('fx',{k:'boom',x:p.x,z:p.z,c});sfx('boom');for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-p.x,z.z-p.z)<4.5)sendHit(z,p.d*1.5,0,0,c);if(G.pvp)for(const e of pvpEnemies())if(Math.hypot(e.x-p.x,e.z-p.z)<4.5)hurtPlayer(e.id,p.d*1.5,0,0)}}
@@ -1216,7 +1223,7 @@ if(r.ring){const en=G.pvp&&((G.teams?.[id]??s.tm??0)!==pvpMyTeam());r.ring.mater
 
 /* ================= CAMERA ================= */
 function updCamera(dt){
- if(G.mode2d){camera.up.set(0,0,-1);camera.position.set(P.x,34,P.z+.001);if(G.shake>0){G.shake-=dt*1.5;camera.position.x+=(Math.random()-.5)*G.shake*.6;camera.position.z+=(Math.random()-.5)*G.shake*.6}camera.lookAt(P.x,0,P.z);camera.up.set(0,1,0);if(P.model)P.model.head.visible=true;$('#cross').style.opacity=0;return}
+ if(G.mode2d){camera.up.set(0,1,0);camera.position.set(P.x,Math.max(5.5,P.y+5),24);if(G.shake>0){G.shake-=dt*1.5;camera.position.x+=(Math.random()-.5)*G.shake*.6;camera.position.y+=(Math.random()-.5)*G.shake*.6}camera.lookAt(P.x,Math.max(2,P.y+2),0);if(P.model)P.model.head.visible=true;$('#cross').style.opacity=0;return}
  const px=P.x,py=P.y+1.6,pz=P.z,cp=Math.cos(cam.pitch),dir=new THREE.Vector3(Math.sin(cam.yaw)*cp,-Math.sin(cam.pitch),Math.cos(cam.yaw)*cp);
 const fp=cam.dist<.8;if(P.model){P.model.head.visible=!fp}
 if(fp){camera.position.set(px+Math.sin(cam.yaw)*.15,py+.1,pz+Math.cos(cam.yaw)*.15);camera.lookAt(camera.position.clone().add(dir))}
@@ -1226,14 +1233,14 @@ $('#cross').style.opacity=(fp||HEROES[S.hero].kind==='gun'||locked()||lookHeld)?
 
 /* ================= FLUSSO PARTITA ================= */
 function startGame(c){initAudio();clearMenuHero();stopGame(true);
-Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],holes:[],arenaGroup:null});
+Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],plats:[],holes:[],arenaGroup:null});
 G.started=0;if(c.map==='random'&&!c.online)G.map=G.map;else if(c.online)G.map=c.map;
 rebuildEnv();if(G.mode2d)buildArena();
 const isPvp=pvpMode(G.gm);
 if(isPvp){G.pvp=true;G.teams=c.teams||pvpTeams();G.state='pvp';G.inter=0;G.wave=0}
 if(G.gm==='ops'){const mhp=1500;G.garden={x:0,z:0,hp:mhp,mhp,model:mkGarden()};scene.add(G.garden.model);G.obst=G.obst.concat([{x:0,z:0,r:.8}])}
 if(G.gm==='royale'){const r0=Math.min(40,(G.bound||44)*.9);G.storm={t:0,need:180,x:0,z:0,r0,r:r0,tick:2,model:mkStorm(r0)};scene.add(G.storm.model)}
-const H=heroStat(),sp=spawnPoint();Object.assign(P,{x:sp.x,y:0,z:sp.z,vy:0,hp:H.hp,mhp:H.hp,burn:0,poison:0,shieldT:0,cd:{},fireT:0,fireCol:fxCol(),hatOut:false,swingT:9,atk:0,kx:0,kz:0,down:0,out:false,inv:isPvp?1.5:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null});
+const H=heroStat(),sp=spawnPoint();Object.assign(P,{x:sp.x,y:sp.y||0,z:sp.z,vy:0,face:G.mode2d?Math.PI/2:0,hp:H.hp,mhp:H.hp,burn:0,poison:0,shieldT:0,cd:{},fireT:0,fireCol:fxCol(),hatOut:false,swingT:9,atk:0,kx:0,kz:0,down:0,out:false,inv:isPvp?1.5:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null});
 rev.p=0;rev.tgt=null;rev.cool=0;barItems=abilityBar();
 P.model=mkPlayer(S.hero,S.eq,curSkin().id);scene.add(P.model.g);cam.yaw=G.mode2d?Math.PI:0;cam.pitch=.35;cam.dist=isTouch?6:5;
 if(Net.on){Object.assign(Net.state,{ing:true,run:true,map:G.map,diff:G.diff,seed:G.seed,gm:G.gm,pvp:G.pvp,mode2d:G.mode2d,arena:G.arena,arenaPreset:G.arenaPreset,destructStruct:G.destructStruct,destructFloor:G.destructFloor,hp:Math.round(P.hp),out:0,tm:G.pvp?pvpMyTeam():0});if(G.pvp&&G.host)Net.state.tms=G.teams;else delete Net.state.tms;if(c.online)qAdd('online',1)}
@@ -1424,7 +1431,7 @@ openModal('📜 Incarichi',h);acts.qc=id=>{const q=QUESTS.find(x=>x.id===id);S.q
 $('#mquest').onclick=openQuests;
 
 /* ---- Gioca solo ---- */
-function openSolo(){openModal('⚔️ Gioca Solo',`<div class="card" style="width:auto"><label>Modalità</label><select id="sg">${GMODES.filter(g=>!g.pvp).map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="sm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Visuale</label><select id="sv"><option value="0">3D</option><option value="1">2D top-down</option></select><label>Arena 2D</label><select id="sa">${Object.entries(ARENA_PRESETS).map(([id,a])=>`<option value="${id}">${a.n}</option>`).join('')}</select><label>Strutture (2D)</label><select id="sds"><option value="1" selected>Distruttibili</option><option value="0">Solide</option></select><label>Pavimento (2D)</label><select id="sdf"><option value="1" selected>Distruttibile</option><option value="0">Solido</option></select><label>Difficoltà</label><select id="sd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><p class="small">La difficoltà cresce con il tuo livello (ora <b>Lv ${lvlInfo(S.xp).l}</b>): zombie più resistenti, forti e numerosi.</p><button class="btn red" id="sgo">▶ Inizia</button></div>`);
+function openSolo(){openModal('⚔️ Gioca Solo',`<div class="card" style="width:auto"><label>Modalità</label><select id="sg">${GMODES.filter(g=>!g.pvp).map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="sm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Visuale</label><select id="sv"><option value="0">3D</option><option value="1">2D laterale</option></select><label>Arena laterale</label><select id="sa">${Object.entries(ARENA_PRESETS).map(([id,a])=>`<option value="${id}">${a.n}</option>`).join('')}</select><label>Strutture (2D)</label><select id="sds"><option value="1" selected>Distruttibili</option><option value="0">Solide</option></select><label>Pavimento (2D)</label><select id="sdf"><option value="1" selected>Distruttibile</option><option value="0">Solido</option></select><label>Difficoltà</label><select id="sd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><p class="small">La difficoltà cresce con il tuo livello (ora <b>Lv ${lvlInfo(S.xp).l}</b>): zombie più resistenti, forti e numerosi.</p><button class="btn red" id="sgo">▶ Inizia</button></div>`);
 $('#sgo').onclick=()=>{const m=$('#sm').value,d=+$('#sd').value,gm=$('#sg').value;leaveLobby();closeModal();startGame({online:false,host:true,map:m==='random'?anyMap():m,diff:d,gm,seed:Math.floor(Math.random()*1e6),mode2d:$('#sv').value==='1',arenaPreset:$('#sa').value,destructStruct:$('#sds').value==='1',destructFloor:$('#sdf').value==='1'})}}
 $('#mplay').onclick=()=>{initAudio();openSolo()};
 $('#mtut').onclick=()=>{initAudio();startTutorial()};
@@ -1440,7 +1447,7 @@ $('#mbody').innerHTML=h;
 acts.refresh=openOnline;acts.create=openCreate;acts.joinc=()=>joinLobby($('#jc').value);acts.joinl=id=>joinLobby(id);
 acts.quick=async()=>{const t=(await BE.listLobbies()).filter(l=>!l.priv&&!l.run&&(l.players||1)<4);if(t.length)joinLobby(t[0].code);else createLobby({name:U.name+' (rapida)',map:'random',diff:1,priv:false})}}
 $('#monline').onclick=openOnline;
-function openCreate(){openModal('➕ Crea lobby',`<div class="card" style="width:auto"><label>Nome</label><input id="cn" value="Lobby di ${U.name}" maxlength="24"><label>Modalità</label><select id="cg">${GMODES.map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="cm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Difficoltà</label><select id="cd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><label>Visuale PvP</label><select id="cv"><option value="0">3D</option><option value="1">2D top-down</option></select><label>Strutture (2D)</label><select id="cds"><option value="1" selected>Distruttibili</option><option value="0">Solide</option></select><label>Pavimento (2D)</label><select id="cdf"><option value="1" selected>Distruttibile</option><option value="0">Solido</option></select><label>Privacy</label><select id="cp"><option value="0">Pubblica</option><option value="1">Solo con codice</option></select><button class="btn red" id="cgo">Crea</button></div>`);
+function openCreate(){openModal('➕ Crea lobby',`<div class="card" style="width:auto"><label>Nome</label><input id="cn" value="Lobby di ${U.name}" maxlength="24"><label>Modalità</label><select id="cg">${GMODES.map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="cm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Difficoltà</label><select id="cd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><label>Visuale PvP</label><select id="cv"><option value="0">3D</option><option value="1">2D laterale</option></select><label>Strutture (2D)</label><select id="cds"><option value="1" selected>Distruttibili</option><option value="0">Solide</option></select><label>Pavimento (2D)</label><select id="cdf"><option value="1" selected>Distruttibile</option><option value="0">Solido</option></select><label>Privacy</label><select id="cp"><option value="0">Pubblica</option><option value="1">Solo con codice</option></select><button class="btn red" id="cgo">Crea</button></div>`);
 $('#cgo').onclick=()=>createLobby({name:$('#cn').value||'Lobby',map:$('#cm').value,diff:+$('#cd').value,gm:$('#cg').value,priv:$('#cp').value==='1',mode2d:$('#cv').value==='1',destructStruct:$('#cds').value==='1',destructFloor:$('#cdf').value==='1'})}
 async function createLobby(c){const code=genCode();LOBBY={code,name:c.name,map:c.map,diff:c.diff,gm:c.gm||'survive',priv:c.priv,mode2d:!!c.mode2d,arena:'',arenaPreset:'open',destructStruct:c.destructStruct!==false,destructFloor:c.destructFloor!==false,hostId:Net.id,hostName:U.name,players:1,run:false};await BE.putLobby(LOBBY);Net.join(code,true);setupLobbyHB();openRoom()}
 function setupLobbyHB(){clearInterval(lobbyHB);lobbyHB=setInterval(()=>{if(!LOBBY||!Net.host)return;LOBBY.players=Net.count();LOBBY.run=G.mode==='play';BE.putLobby(LOBBY)},3000)}
@@ -1513,7 +1520,7 @@ let arenaDraft=null;
 function openArenaEditor(){
  if(!LOBBY)return;
  const rows=arenaGrid(LOBBY.arena)||arenaRows(LOBBY.arenaPreset).split('/');arenaDraft=rows.map(r=>r.split(''));
- let h='<p class="small">Clicca le celle per aggiungere o togliere blocchi. Le zone di partenza restano libere.</p><div class="agrid">';
+ let h='<p class="small">Clicca le celle per aggiungere o togliere piattaforme. La riga in basso è il terreno.</p><div class="agrid">';
  for(let r=0;r<ARENA_N;r++)for(let c=0;c<ARENA_N;c++)h+=`<button type="button" class="acell ${arenaDraft[r][c]==='1'?'on':''}" data-r="${r}" data-c="${c}"></button>`;
  h+='</div><button class="btn red" data-a="asave">💾 Salva arena</button>';
  openModal('🗺 Editor arena',h);
@@ -1525,7 +1532,7 @@ const link=location.origin==='null'||location.protocol==='file:'?location.href.s
 let h=`<p>Codice: <b style="font-size:22px;letter-spacing:3px">${LOBBY.code}</b> <button class="btn sm ghost" data-a="copy" data-id="${link}">📋 Copia link</button> <button class="btn sm ghost" data-a="share" data-id="${link}">📤 Invita</button></p>`;
 if(Net.host)h+=`<div class="row"><div><label class="small">Modalità</label><select data-s="rgm">${GMODES.map(g=>`<option value="${g.id}" ${(LOBBY.gm||'survive')===g.id?'selected':''}>${g.n}</option>`).join('')}</select></div><div><label class="small">Mappa</label><select data-s="rm">${MAPS.map(m=>`<option value="${m[0]}" ${LOBBY.map===m[0]?'selected':''}>${m[1]}</option>`).join('')}</select></div><div><label class="small">Difficoltà</label><select data-s="rd">${DIFFS.map((d,i)=>`<option value="${i}" ${LOBBY.diff===i?'selected':''}>${d.n}</option>`).join('')}</select></div><div><label class="small">Privacy</label><select data-s="rp"><option value="0" ${!LOBBY.priv?'selected':''}>Pubblica</option><option value="1" ${LOBBY.priv?'selected':''}>Solo con codice</option></select></div></div>`;
 else h+=`<p>${gmName(LOBBY.gm)} · Mappa: <b>${mName(LOBBY.map)}</b> · Difficoltà: <b>${DIFFS[LOBBY.diff].n}</b> · ${LOBBY.mode2d?'🎮 2D · ':''}${LOBBY.priv?'Solo con codice':'Pubblica'}</p>`;
-if(Net.host&&pvp)h+=`<div class="row"><div><label class="small">Visuale PvP</label><select data-s="r2d"><option value="0" ${!LOBBY.mode2d?'selected':''}>3D</option><option value="1" ${LOBBY.mode2d?'selected':''}>2D top-down</option></select></div><div><label class="small">Arena</label><select data-s="rarena">${Object.entries(ARENA_PRESETS).map(([id,a])=>`<option value="${id}" ${(LOBBY.arenaPreset||'open')===id?'selected':''}>${a.n}</option>`).join('')}${LOBBY.arenaPreset==='custom'?'<option value="custom" selected>Arena personalizzata</option>':''}</select></div><div><label class="small">Strutture</label><select data-s="rds"><option value="0" ${LOBBY.destructStruct===false?'selected':''}>Solide</option><option value="1" ${LOBBY.destructStruct!==false?'selected':''}>Distruttibili</option></select></div><div><label class="small">Pavimento</label><select data-s="rdf"><option value="0" ${LOBBY.destructFloor===false?'selected':''}>Solido</option><option value="1" ${LOBBY.destructFloor!==false?'selected':''}>Distruttibile</option></select></div></div>${LOBBY.mode2d?'<div class="row"><button class="btn sm alt" data-a="redit">🗺 Editor arena</button></div>':''}`;
+if(Net.host&&pvp)h+=`<div class="row"><div><label class="small">Visuale PvP</label><select data-s="r2d"><option value="0" ${!LOBBY.mode2d?'selected':''}>3D</option><option value="1" ${LOBBY.mode2d?'selected':''}>2D laterale</option></select></div><div><label class="small">Arena</label><select data-s="rarena">${Object.entries(ARENA_PRESETS).map(([id,a])=>`<option value="${id}" ${(LOBBY.arenaPreset||'open')===id?'selected':''}>${a.n}</option>`).join('')}${LOBBY.arenaPreset==='custom'?'<option value="custom" selected>Arena personalizzata</option>':''}</select></div><div><label class="small">Strutture</label><select data-s="rds"><option value="0" ${LOBBY.destructStruct===false?'selected':''}>Solide</option><option value="1" ${LOBBY.destructStruct!==false?'selected':''}>Distruttibili</option></select></div><div><label class="small">Pavimento</label><select data-s="rdf"><option value="0" ${LOBBY.destructFloor===false?'selected':''}>Solido</option><option value="1" ${LOBBY.destructFloor!==false?'selected':''}>Distruttibile</option></select></div></div>${LOBBY.mode2d?'<div class="row"><button class="btn sm alt" data-a="redit">🗺 Editor arena</button></div>':''}`;
 h+='<h3>Giocatori ('+ps.length+'/4)</h3>'+ps.map(p=>`<div class="lob"><span>${p.host?'👑 ':'🧍 '}${p.n}</span><span class="small">${pvp?'Squadra '+(p.team?'B':'A')+' · ':''}${HEROES[p.hero]?.n||''}</span></div>`).join('');
 if(Net.host&&pvp)h+=`<p class="small">${LOBBY.gm==='pvp1'?'PvP 1v1: servono esattamente 2 giocatori.':'PvP 2v2: servono esattamente 4 giocatori.'}</p>`;
 h+='<div class="row" style="margin-top:10px">';if(Net.host)h+=`<button class="btn red" data-a="rstart">${running?'↩ Rientra in partita':'▶ Inizia partita'}</button>`;else h+=running?'<button class="btn red" data-a="rjoin">▶ Entra in partita</button>':'<span class="small">In attesa che l\'host inizi...</span>';
@@ -1704,7 +1711,7 @@ function syncLooking(){canvas.classList.toggle('looking',lookHeld||shiftLock)}
 function updateLockHint(){const el=$('#chint');if(!el)return;
   const kn=c=>c==='Space'?'Spazio':String(c||'').replace('Key','').replace('Digit','');
   if(GP.on){el.textContent=gpHint();el.classList.remove('lock');return}
-  if(G.mode==='play'&&G.mode2d){el.textContent=isTouch?`🕹 2D · joystick ${S.set.mob.side==='left'?'a sinistra':'a destra'} · ${kn(keyb('atk'))}: attacco · 1-2 abilità`:`🎮 2D top-down · ${kn(keyb('atk'))}: attacco · ${kn(keyb('jump'))}: salto · ${kn(keyb('rev'))}: rianima · 1-2 abilità`;el.classList.remove('lock');return}
+  if(G.mode==='play'&&G.mode2d){el.textContent=isTouch?`🕹 2D · joystick ${S.set.mob.side==='left'?'a sinistra':'a destra'} · ${kn(keyb('atk'))}: attacco · ${kn(keyb('jump'))}: salto`:`🎮 2D laterale · A/D o stick: muoviti · ${kn(keyb('jump'))}: salto · ${kn(keyb('atk'))}: attacco · 1-2 abilità`;el.classList.remove('lock');return}
   el.textContent=shiftLock?'🔒 Mouse bloccato (Shift per sbloccare) · Sinistro: attacco · '+kn(keyb('rev'))+': rianima · 1-4 abilità':(isTouch?'🕹 Joystick a sinistra · trascina a destra per la visuale · 🤝 rianima':'🖱️ Tasto destro: visuale (mouse bloccato) · Sinistro: attacco · '+kn(keyb('rev'))+': rianima · 1-2 abilità · Shift: blocco mouse');
   el.classList.toggle('lock',shiftLock);}
 function setShiftLock(v){
