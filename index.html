@@ -637,11 +637,11 @@ for(let i=0;i<nl;i++){const l=ld[i];l.y-=l.v*dt;l.x+=Math.sin(t*.8+l.ph)*.8*dt+.
 let x=l.x+cx,z=l.z+cz;dm.position.set(x,l.y,z);dm.rotation.set(t*l.rs+l.ph,t*l.rs*.7,0);dm.scale.setScalar(1);dm.updateMatrix();lv.setMatrixAt(i,dm.matrix)}lv.instanceMatrix.needsUpdate=true}}}
 function rebuildEnv(){if(ENV){scene.remove(ENV.grp);ENV.grp.traverse(o=>{if(o.geometry&&o.geometry!==BOX&&o.geometry!==grassGeo)o.geometry.dispose()})}
 const pl=G.mode==='play';ENV=buildEnv(pl?G.map:'village',pl?G.seed:7,!pl);G.obst=ENV.obst;G.bound=ENV.bound||44}
-function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];G.structs=[];G.plats=[];if(ENV)ENV.grp.visible=true}
+function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];G.structs=[];G.plats=[];G.movers=[];if(ENV)ENV.grp.visible=true}
 function buildArena(){
  if(!G.mode2d)return;
  const rows=arenaGrid(G.arena)||arenaRows(G.arenaPreset).split('/'),off=(ARENA_N-1)*ARENA_CELL/2,grp=new THREE.Group();
- G.structs=[];G.plats=[];G.arenaGroup=grp;scene.add(grp);
+ G.structs=[];G.plats=[];G.movers=[];G.arenaGroup=grp;scene.add(grp);
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(160,90),new THREE.MeshBasicMaterial({color:0x8bd7ff}));sky.position.set(0,20,-30);grp.add(sky);
  const sea=new THREE.Mesh(new THREE.PlaneGeometry(160,34),new THREE.MeshBasicMaterial({color:0x2d84bb}));sea.position.set(0,-9,-29.8);grp.add(sea);
  const cloudMat=MT(0xffffff,{roughness:1});
@@ -660,14 +660,21 @@ function buildArena(){
   const pl={x,y:SIDE_FLOOR_Y,z:0,w:ARENA_CELL*1.02,h:.8,ground:true};G.plats.push(pl);
   G.structs.push({id:G.structs.length,x,z:0,y:pl.y,baseY:SIDE_FLOOR_Y-.4,w:pl.w,h:.8,hp:100,mesh,pl,ground:true,dead:false})
  }
+ const moverMat=MT(0x3f8fb5,{roughness:.65}),moverDefs=[
+  {x:0,y:3.4,w:8,baseX:0,amp:8,axis:'x',speed:.55,phase:0},
+  {x:0,y:5.2,w:8,baseX:0,amp:7,axis:'x',speed:.4,phase:2.1},
+  {x:20,y:3.6,w:7,baseY:3.6,amp:1.5,axis:'y',speed:.5,phase:1.2}
+ ];
+ for(const d of moverDefs){const mesh=bx(grp,d.w,.8,6,moverMat,d.x,d.y-.4,0);mesh.castShadow=true;mesh.receiveShadow=true;const pl={x:d.x,y:d.y,z:0,w:d.w,h:.8,ground:false,mover:true};G.plats.push(pl);G.movers.push({...d,mesh,pl})}
  G.bound=off+ARENA_CELL+GROUND_EXT*ARENA_CELL;if(ENV)ENV.grp.visible=false;
 }
+function updMovers(){if(!G.mode2d)return;for(const m of G.movers||[]){const px=m.pl.x;if(m.axis==='x')m.pl.x=m.baseX+Math.sin(G.t*m.speed+m.phase)*m.amp;else m.pl.y=m.baseY+Math.sin(G.t*m.speed+m.phase)*m.amp;m.mesh.position.set(m.pl.x,m.pl.y-.4,0);if(Math.abs(P.y-m.pl.y)<.2&&P.x>=m.pl.x-m.w/2-.35&&P.x<=m.pl.x+m.w/2+.35){P.x+=m.pl.x-px;if(m.axis==='y')P.y=m.pl.y}}}
 function destroyStruct(s,remote){
  if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const pi=G.plats?.indexOf(s.pl);if(pi>=0)G.plats.splice(pi,1);burst(s.x,(s.y||0)+.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
 }
 function damageStructs(x,z,r,dmg,y){
  if(!G.mode2d||!G.destructStruct||!G.structs?.length)return;
- for(const s of G.structs){if(s.dead||(s.ground&&!G.destructFloor))continue;if(s.ground&&P.y<=SIDE_FLOOR_Y+.3&&Math.abs(P.x-s.x)<(s.w||0)/2+.3)continue;if(Math.hypot(s.x-x,s.z-z)>r+s.w/2)continue;if(y!=null&&Math.abs(s.y-y)>r+1.6)continue;
+ for(const s of G.structs){if(s.dead||(s.ground&&!G.destructFloor))continue;if(Math.abs(P.y-s.y)<.35&&Math.abs(P.x-s.x)<(s.w||0)/2+.3)continue;if(Math.hypot(s.x-x,s.z-z)>r+s.w/2)continue;if(y!=null&&Math.abs(s.y-y)>r+1.6)continue;
   s.hp-=dmg;const sc=Math.max(.18,s.hp/100);s.mesh.scale.y=s.h*sc;s.mesh.position.y=s.baseY+(s.h-s.h*sc)/2;
   if(s.hp<=0)destroyStruct(s,false)
  }
@@ -780,7 +787,7 @@ this.h.publish({sid:this.sid,s:this.state,ev:this.evq,ts:n});this.force=false},
 count(){return 1+Object.keys(this.peers).length}};
 
 /* ================= STATO DI GIOCO ================= */
-const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],plats:[],holes:[],arenaGroup:null};
+const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],plats:[],holes:[],arenaGroup:null,movers:[]};
 const P={x:0,y:0,z:0,vy:0,face:0,hp:100,mhp:100,burn:0,poison:0,shieldT:0,swingT:9,swingHit:true,atk:0,cd:{},fireT:0,fireTick:0,fireCol:0xff7a1a,mv:0,sw:0,kx:0,kz:0,rd:0,rt:0,recoil:0,hatOut:false,model:null,down:0,out:false,inv:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null,lastShot:0};
 const rev={tgt:null,p:0,cool:0};
 const cam={yaw:0,pitch:.35,dist:5};
@@ -1023,7 +1030,7 @@ case 'shield':P.shieldT=6;P.hp=Math.min(P.mhp,P.hp+25);fxAt('shield',P.x,P.z,0x6
 function usePower(i){useSlot(i)}
 function pushOut(o,r){for(const b of G.obst){const dx=o.x-b.x,dz=o.z-b.z,d=Math.hypot(dx,dz),m=b.r+r;if(d<m&&d>.001){o.x=b.x+dx/d*m;o.z=b.z+dz/d*m}}const B=G.bound||44,d=Math.hypot(o.x,o.z);if(d>B){o.x*=B/d;o.z*=B/d}}
 function sidePushOut(o){o.x=clamp(o.x,-(G.bound||28),G.bound||28);o.z=0}
-function sideZombieY(o,dt){if(!G.mode2d)return;if(o.y==null)o.y=SIDE_FLOOR_Y;const prev=o.y;o.vy=(o.vy||0)-30*dt;o.y+=o.vy*dt;let land=null;for(const pl of G.plats||[])if(o.vy<=0&&o.x>=pl.x-pl.w/2-.35&&o.x<=pl.x+pl.w/2+.35&&prev>=pl.y-.12&&o.y<=pl.y&&(!land||pl.y>land.y))land=pl;if(land){o.y=land.y;o.vy=0;o.grounded=true;return}if(o.y<=SIDE_FLOOR_Y){const support=(G.plats||[]).some(pl=>pl.ground&&Math.abs(o.x-pl.x)<=pl.w/2+.35);if(support){o.y=SIDE_FLOOR_Y;o.vy=0;o.grounded=true}else o.grounded=false}else o.grounded=false}
+function sideZombieY(o,dt){if(!G.mode2d)return;if(o.y==null)o.y=SIDE_FLOOR_Y;const prev=o.y;o.vy=(o.vy||0)-30*dt;o.y+=o.vy*dt;let land=null;for(const pl of G.plats||[])if(o.vy<=0&&o.x>=pl.x-pl.w/2-.35&&o.x<=pl.x+pl.w/2+.35&&prev>=pl.y-.12&&o.y<=pl.y&&(!land||pl.y>land.y))land=pl;if(land){o.y=land.y;o.vy=0;o.boost=0;o.grounded=true;return}if(o.y<=SIDE_FLOOR_Y){const support=(G.plats||[]).some(pl=>pl.ground&&Math.abs(o.x-pl.x)<=pl.w/2+.35);if(support){o.y=SIDE_FLOOR_Y;o.vy=0;o.boost=0;o.grounded=true}else o.grounded=false}else o.grounded=false}
 function sideLand(prevY){let land=null;for(const pl of G.plats||[])if(P.vy<=0&&P.x>=pl.x-pl.w/2-.35&&P.x<=pl.x+pl.w/2+.35&&prevY>=pl.y-.12&&P.y<=pl.y){if(!land||pl.y>land.y)land=pl}return land}
 function updatePlayer(dt){const H=heroStat();if(G.mode2d)cam.yaw=Math.PI;
 for(const k of ['candyStr','candySpd','candyHp','candyPoison','candyStorm'])if(P[k]>0){P[k]-=dt;if(P[k]<=0){P[k]=0;if(k==='candyHp')P.hp=Math.min(P.hp,H.hp)}}
@@ -1105,8 +1112,9 @@ if(o.hp<=0){o.hp=0;o.dead=true;o.dt=0;
  if(o.dummy){if(by===Net.id){TUT.kills++;if(hapticFn)hapticFn('kill')}burst(o.x,1.2,o.z,0x4a7a2a,10,5,4)}
  else{if(by===Net.id){reward(o.type,o.x,o.z);if(hapticFn)hapticFn('kill')}else Net.event('kill',{to:by,t:o.type,x:+o.x.toFixed(2),z:+o.z.toFixed(2)});
   if(T.boss){banner('👑 RE ZOMBIE SCONFITTO!');sfx('boom');burst(o.x,3,o.z,0xffd24a,60,14,10,1.6);for(const h of G.hazards)if(h.src===o.id)h.dead=true}}}}
-function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,y:G.mode2d?SIDE_FLOOR_Y:0,vy:0,grounded:true,jumpCd:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs,rise:G.mode2d?.7:0};G.zombies.push(o);G.zById[o.id]=o;if(G.mode2d)burst(x,SIDE_FLOOR_Y-.05,z,0x8a6a4a,8,3,4);if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
+function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,y:G.mode2d?SIDE_FLOOR_Y:0,vy:0,boost:0,grounded:true,jumpCd:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs,rise:G.mode2d?.7:0};G.zombies.push(o);G.zById[o.id]=o;if(G.mode2d)burst(x,SIDE_FLOOR_Y-.05,z,0x8a6a4a,8,3,4);if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
 function sideSpawnX(){const gs=(G.structs||[]).filter(s=>s.ground&&!s.dead&&Math.abs(s.x-P.x)>7);if(gs.length)return gs[Math.floor(Math.random()*gs.length)].x;return clamp(P.x+(Math.random()<.5?-1:1)*(14+Math.random()*10),-(G.bound||28)+3,(G.bound||28)-3)}
+function sideFloorAt(x){return (G.plats||[]).some(pl=>pl.ground&&Math.abs(x-pl.x)<=pl.w/2+.05)}
 function targets(){const t=[];if(P.hp>0)t.push({id:Net.id,me:true,x:P.x,z:P.z,y:P.y});for(const id in Net.peers){const s=Net.peers[id].doc.s;if(s&&s.ing&&s.hp>0)t.push({id,x:s.x,z:s.z,y:s.y||0})}
  if(G.garden&&G.garden.hp>0&&!G.final)t.push({garden:true,id:'garden',x:G.garden.x,z:G.garden.z,y:0});return t}
 const pvpMode=id=>id==='pvp1'||id==='pvp2';
@@ -1168,11 +1176,12 @@ if(o.dummy){const ddx=P.x-o.x,ddz=P.z-o.z,dd=Math.hypot(ddx,ddz)||1;if(dd>3.2){o
 let tgt=null,bd=1e9;for(const t of tg){const d=Math.hypot(t.x-o.x,t.z-o.z);if(d<bd){bd=d;tgt=t}}if(!tgt)continue;
 const dx=tgt.x-o.x,dz=tgt.z-o.z,dist=bd;o.ry=angLerp(o.ry,Math.atan2(dx,dz),Math.min(1,dt*6));
 const spd=T.spd*(1+G.diff*.08)*(o.spdF||1)*(o.slow>0?.4:1)*(o.stun>0?.2:1),reach=T.scale*1.0+.6;let move=0;
-const dy=(tgt.y||0)-(o.y||0);if(G.mode2d&&o.grounded&&dy>1.1&&dist<14&&o.jumpCd<=0){o.vy=17;o.grounded=false;o.jumpCd=.9}
+const dy=(tgt.y||0)-(o.y||0),dirx=dx>=0?1:-1;if(G.mode2d&&o.grounded&&o.jumpCd<=0&&sideFloorAt(o.x)&&!sideFloorAt(o.x+dirx*1.6)){o.vy=16;o.boost=2.5;o.grounded=false;o.jumpCd=.9}
+if(G.mode2d&&o.grounded&&dy>1.1&&dist<14&&o.jumpCd<=0){o.vy=17;o.grounded=false;o.jumpCd=.9}
 if(T.boss)bossAI(o,dt,tgt,dist,tg,spd);
 else if(T.ranged){if(dist>11){move=spd}else if(dist<7)move=-spd*.6;o.cd-=dt;if(dist<24&&o.cd<=0){o.cd=2.2;const l=Math.hypot(dx,dz);const h={id:G.nid++,k:0,x:o.x,y:(o.y||0)+1.4,z:o.z,vx:dx/l*15,vz:dz/l*15,life:3,d:T.dmg*D.dmg*(o.wfD||1)};G.hazards.push(h);G.hById[h.id]=h;sfx('shoot')}}
 else{if(dist>reach)move=spd;o.cd-=dt;if(o.wind>0){o.wind-=dt;if(o.wind<=0){if(Math.hypot(tgt.x-o.x,tgt.z-o.z)<reach+.8&&Math.abs((tgt.y||0)-o.y)<1.7)hurtT(tgt,T.dmg*D.dmg*(o.wfD||1),null)}}else if(dist<=reach+.2&&Math.abs((tgt.y||0)-o.y)<1.7&&o.cd<=0){o.cd=1.1;o.wind=.35}}
-if(move){o.x+=Math.sin(o.ry)*move*dt;o.z+=Math.cos(o.ry)*move*dt;o.ph+=dt*move*3}
+if(move){o.x+=Math.sin(o.ry)*move*dt*(o.boost||1);o.z+=Math.cos(o.ry)*move*dt*(o.boost||1);o.ph+=dt*move*3}
 o.x+=(o.kx||0)*dt;o.z+=(o.kz||0)*dt;o.kx*=Math.pow(.01,dt);o.kz*=Math.pow(.01,dt);
 for(let j=i-1;j>=0;j--){const b=G.zombies[j];if(b.dead)continue;const ddx=o.x-b.x,ddz=o.z-b.z,d=Math.hypot(ddx,ddz),m=(T.scale+ZT[b.type].scale)*.4;if(d<m&&d>.001){const p=(m-d)*.5;o.x+=ddx/d*p;o.z+=ddz/d*p;b.x-=ddx/d*p;b.z-=ddz/d*p}}
 pushOut(o,.5*T.scale);o.tx=o.x;o.tz=o.z;o.tr=o.ry}
@@ -1248,7 +1257,7 @@ $('#cross').style.opacity=(fp||HEROES[S.hero].kind==='gun'||locked()||lookHeld)?
 
 /* ================= FLUSSO PARTITA ================= */
 function startGame(c){initAudio();clearMenuHero();stopGame(true);
-Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],plats:[],holes:[],arenaGroup:null});
+Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],plats:[],holes:[],arenaGroup:null,movers:[]});
 G.started=0;if(c.map==='random'&&!c.online)G.map=G.map;else if(c.online)G.map=c.map;
 rebuildEnv();if(G.mode2d)buildArena();
 const isPvp=pvpMode(G.gm);
@@ -1839,7 +1848,7 @@ hold($('#bRev'),v=>I.rev=v);
 /* ================= LOOP ================= */
 let last=performance.now(),tAll=0;
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;tAll+=dt;updGamepad(dt);
-if(G.mode==='play'){const run=!(G.paused&&!Net.on);if(run){G.t+=dt;if(G.started===0)G.started=G.t;updatePlayer(dt);if(G.host)hostSim(dt);else clientInterp(dt);updProj(dt);updRemote(dt);
+if(G.mode==='play'){const run=!(G.paused&&!Net.on);if(run){G.t+=dt;if(G.started===0)G.started=G.t;updMovers();updatePlayer(dt);if(G.host)hostSim(dt);else clientInterp(dt);updProj(dt);updRemote(dt);
  const H=heroStat(),m=P.model;if(m){m.g.position.set(P.x,P.y,P.z);m.g.rotation.y=P.face;const s=Math.sin(G.t*10)*clamp(P.mv/5,0,1)*.9;m.legL.rotation.x=s;m.legR.rotation.x=-s;m.armL.rotation.x=-s*.7;armPose(m,H,P.swingT,Math.min(.32,H.rate*.8),s,P.recoil);m.body.rotation.x=P.hp<=0?-1.5:0;if(m.handHat)m.handHat.visible=!P.hatOut;
  if(P.cast&&P.cast.t>0){P.cast.t-=dt;const cp=1-Math.max(0,P.cast.t)/P.cast.dur,cw=Math.sin(cp*Math.PI),ck=P.cast.kind;m.g.scale.setScalar(1);
   if(ck==='spin'){m.g.rotation.y=P.face+cp*Math.PI*2;m.armL.rotation.z=.9*cw;m.armR.rotation.z=-.9*cw}
