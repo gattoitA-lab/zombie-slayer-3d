@@ -252,7 +252,7 @@ const ARENA_PRESETS={
  cross:{n:'Croce',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00011111000/00100000100/00011111000/11111111111'},
  pillars:{n:'Torri',rows:'00000000000/00000000000/00000000000/00000000000/00000000000/00000000000/00110001100/00100000100/00001110000/00100000100/11111111111'}
 };
-const ARENA_N=11,ARENA_CELL=5,ARENA_LEVEL=2.6;
+const ARENA_N=11,ARENA_CELL=5,ARENA_LEVEL=2.6,SIDE_FLOOR_Y=.8,GROUND_EXT=4;
 const arenaGrid=v=>{if(!v)return null;const r=String(v).split('/');return r.length===ARENA_N?r.map(x=>(x+'00000000000').slice(0,ARENA_N)):null};
 const arenaRows=id=>ARENA_PRESETS[id]?.rows||ARENA_PRESETS.open.rows;
 const BIGMAPS=['suburb','desert'];
@@ -645,15 +645,22 @@ function buildArena(){
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(160,90),new THREE.MeshBasicMaterial({color:0x8bd7ff}));sky.position.set(0,20,-30);grp.add(sky);
  const sea=new THREE.Mesh(new THREE.PlaneGeometry(160,34),new THREE.MeshBasicMaterial({color:0x2d84bb}));sea.position.set(0,-9,-29.8);grp.add(sea);
  const cloudMat=MT(0xffffff,{roughness:1});
+ const groundMat=MT(0xb43b2c,{roughness:.78}),platMat=MT(0x4f8a4f,{roughness:.8});
  for(const [cx,cy,cs] of [[-22,24,1.6],[4,31,2.1],[26,22,1.3]])for(let i=-1;i<=1;i++){const cl=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,7),cloudMat);cl.position.set(cx+i*1.5,cy+Math.abs(i)*.3,-26);cl.scale.set(cs*1.7,cs*.55,cs*.5);grp.add(cl)}
  rows.forEach((row,r)=>[...row].forEach((ch,c)=>{
   if(ch!=='1')return;
   const x=-off+c*ARENA_CELL,base=(ARENA_N-1-r)*ARENA_LEVEL,ground=r===ARENA_N-1;
-  const mesh=bx(grp,ARENA_CELL*1.02,.8,6,ground?MT(0xb43b2c,{roughness:.78}):MT(0x4f8a4f,{roughness:.8}),x,base+.4,0);mesh.castShadow=true;mesh.receiveShadow=true;
+  const mesh=bx(grp,ARENA_CELL*1.02,.8,6,ground?groundMat:platMat,x,base+.4,0);mesh.castShadow=true;mesh.receiveShadow=true;
   const pl={x,y:base+.8,z:0,w:ARENA_CELL*1.02,h:.8,ground};G.plats.push(pl);
   G.structs.push({id:G.structs.length,x,z:0,y:pl.y,baseY:base+.4,w:pl.w,h:.8,hp:100,mesh,pl,ground,dead:false})
  }));
- G.bound=off+ARENA_CELL;if(ENV)ENV.grp.visible=false;
+ for(let k=-GROUND_EXT;k<ARENA_N+GROUND_EXT;k++){
+  if(k>=0&&k<ARENA_N)continue;
+  const x=-off+k*ARENA_CELL,mesh=bx(grp,ARENA_CELL*1.02,.8,6,groundMat,x,SIDE_FLOOR_Y-.4,0);mesh.castShadow=true;mesh.receiveShadow=true;
+  const pl={x,y:SIDE_FLOOR_Y,z:0,w:ARENA_CELL*1.02,h:.8,ground:true};G.plats.push(pl);
+  G.structs.push({id:G.structs.length,x,z:0,y:pl.y,baseY:SIDE_FLOOR_Y-.4,w:pl.w,h:.8,hp:100,mesh,pl,ground:true,dead:false})
+ }
+ G.bound=off+ARENA_CELL+GROUND_EXT*ARENA_CELL;if(ENV)ENV.grp.visible=false;
 }
 function destroyStruct(s,remote){
  if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const pi=G.plats?.indexOf(s.pl);if(pi>=0)G.plats.splice(pi,1);burst(s.x,(s.y||0)+.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
@@ -667,7 +674,8 @@ function damageStructs(x,z,r,dmg,y){
 }
 function breakFloor(x,z,r,remote,y){
  if(!G.mode2d||!G.destructFloor||(y!=null&&y>4))return;
- const target=(G.structs||[]).find(s=>s.ground&&!s.dead&&Math.abs(s.x-x)<=r+(s.w||0)/2);
+ const underFoot=s=>P.y<=SIDE_FLOOR_Y+.3&&Math.abs(P.x-s.x)<(s.w||0)/2+.3;
+ const target=(G.structs||[]).find(s=>s.ground&&!s.dead&&!underFoot(s)&&Math.abs(s.x-x)<=r+(s.w||0)/2);
  if(target)destroyStruct(target,remote);
 }
 
@@ -795,7 +803,7 @@ function gainCoins(n,wx,wy,wz){n=Math.round(n);if(!n)return;S.coins+=n;const pla
 function levelUpFX(l,coins){const box=$('#levelup');if(!box)return;box.querySelector('.lvl').textContent=l;box.querySelector('.lvc').textContent='+🪙 '+coins+' monete';box.classList.remove('on');void box.offsetWidth;box.classList.add('on');const conf=box.querySelector('.conf');conf.innerHTML='';for(let i=0;i<30;i++){const s=document.createElement('span');s.textContent=['🪙','✨','⭐','💫'][i%4];s.style.fontSize=(14+Math.random()*20)+'px';s.style.left='50%';s.style.top='46%';conf.appendChild(s);const a=Math.random()*6.283,d=120+Math.random()*300;s.animate([{transform:'translate(-50%,-50%) scale(.3) rotate(0deg)',opacity:1},{transform:`translate(calc(-50% + ${Math.cos(a)*d}px),calc(-50% + ${Math.sin(a)*d-50}px)) scale(1.1) rotate(${(Math.random()-.5)*600}deg)`,opacity:0}],{duration:950+Math.random()*650,delay:Math.random()*120,easing:'cubic-bezier(.15,.6,.3,1)'}).onfinish=()=>s.remove()}const tgt=G.mode==='play'?$('#hcoins'):$('#tcoin');if(tgt){tgt.classList.remove('pop');void tgt.offsetWidth;tgt.classList.add('pop')}if(G.mode==='play')G.shake=Math.max(G.shake,.18);sfx('levelup');clearTimeout(levelUpFX.t);levelUpFX.t=setTimeout(()=>box.classList.remove('on'),2200)}
 
 /* ---- Morte, rianimazione e rientro ---- */
-const spawnPoint=()=>{if(G.mode2d)return{x:G.pvp?((G.teams?.[Net.id]??0)?12:-12):0,z:0,y:1.2};if(G.pvp){const t=G.teams?.[Net.id]??0;return{x:t?10:-10,z:t?-2:2}}return{x:0,z:G.gm==='ops'?5.5:0}};
+const spawnPoint=()=>{if(G.mode2d){const want=G.pvp?((G.teams?.[Net.id]??0)?12:-12):0;let x=want,bd=1e9;for(const s of G.structs||[])if(s.ground&&!s.dead&&Math.abs(s.x-want)<bd){bd=Math.abs(s.x-want);x=s.x}return{x,z:0,y:SIDE_FLOOR_Y}}if(G.pvp){const t=G.teams?.[Net.id]??0;return{x:t?10:-10,z:t?-2:2}}return{x:0,z:G.gm==='ops'?5.5:0}};
 function mkGarden(){
 const g=new THREE.Group(),stem=MT(0x3f8f3f),leafM=MT(0x2f7a35),petal=MT(0xffb020,{emissive:0xff9900,emissiveIntensity:.4});
 bx(g,.55,2.3,.55,stem,0,1.15,0).castShadow=true;
@@ -1096,7 +1104,8 @@ if(o.hp<=0){o.hp=0;o.dead=true;o.dt=0;
  if(o.dummy){if(by===Net.id){TUT.kills++;if(hapticFn)hapticFn('kill')}burst(o.x,1.2,o.z,0x4a7a2a,10,5,4)}
  else{if(by===Net.id){reward(o.type,o.x,o.z);if(hapticFn)hapticFn('kill')}else Net.event('kill',{to:by,t:o.type,x:+o.x.toFixed(2),z:+o.z.toFixed(2)});
   if(T.boss){banner('👑 RE ZOMBIE SCONFITTO!');sfx('boom');burst(o.x,3,o.z,0xffd24a,60,14,10,1.6);for(const h of G.hazards)if(h.src===o.id)h.dead=true}}}}
-function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs};G.zombies.push(o);G.zById[o.id]=o;if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
+function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs,rise:G.mode2d?.7:0};G.zombies.push(o);G.zById[o.id]=o;if(G.mode2d)burst(x,SIDE_FLOOR_Y-.05,z,0x8a6a4a,8,3,4);if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
+function sideSpawnX(){const gs=(G.structs||[]).filter(s=>s.ground&&!s.dead&&Math.abs(s.x-P.x)>7);if(gs.length)return gs[Math.floor(Math.random()*gs.length)].x;return clamp(P.x+(Math.random()<.5?-1:1)*(14+Math.random()*10),-(G.bound||28)+3,(G.bound||28)-3)}
 function targets(){const t=[];if(P.hp>0)t.push({id:Net.id,me:true,x:P.x,z:P.z,y:P.y});for(const id in Net.peers){const s=Net.peers[id].doc.s;if(s&&s.ing&&s.hp>0)t.push({id,x:s.x,z:s.z,y:s.y||0})}
  if(G.garden&&G.garden.hp>0&&!G.final)t.push({garden:true,id:'garden',x:G.garden.x,z:G.garden.z,y:0});return t}
 const pvpMode=id=>id==='pvp1'||id==='pvp2';
@@ -1147,13 +1156,13 @@ if(G.final){
  if(f.spT<=0){f.spT=7;const nn=2;if(G.zombies.filter(z=>!z.dead).length<32)for(let i=0;i<nn;i++){const a=Math.random()*6.283,dd=24+Math.random()*14,tt=Math.random()<.3?'runner':'normal',zx=P.x+Math.cos(a)*dd,zz=P.z+Math.sin(a)*dd,lim=(G.bound||44)*.95,mm=Math.hypot(zx,zz);spawnZ(tt,mm>lim?zx*lim/mm:zx,mm>lim?zz*lim/mm:zz)}}
 }
 if(G.state==='inter'){G.inter-=dt;if(G.inter<=0)nextWave()}
-else{G.spT-=dt;if(G.spawnQ.length&&G.spT<=0&&alive<cap){G.spT=.6;const t=G.spawnQ.shift(),c=tg[Math.floor(Math.random()*tg.length)]||{x:0,z:0},a=Math.random()*6.283,d=t==='boss'?30:28+Math.random()*8;let x=c.x+Math.cos(a)*d,z=c.z+Math.sin(a)*d;const lim=(G.bound||44)*.97,m=Math.hypot(x,z);if(m>lim){x*=lim/m;z*=lim/m}spawnZ(t,x,z)}
+else{G.spT-=dt;if(G.spawnQ.length&&G.spT<=0&&alive<cap){G.spT=.6;const t=G.spawnQ.shift(),c=tg[Math.floor(Math.random()*tg.length)]||{x:0,z:0},a=Math.random()*6.283,d=t==='boss'?30:28+Math.random()*8;let x=c.x+Math.cos(a)*d,z=c.z+Math.sin(a)*d;if(G.mode2d){x=sideSpawnX();z=0}const lim=(G.bound||44)*.97,m=Math.hypot(x,z);if(m>lim){x*=lim/m;z*=lim/m}spawnZ(t,x,z)}
 else if(!G.spawnQ.length&&alive===0&&!G.final){
   if(G.gm==='ops'&&G.wave>=G.maxW){const d={win:1};Net.event('over',d);gameOver(d);return}
   G.state='inter';G.inter=5;banner(G.gm==='ops'?'Ondata '+G.wave+' superata!':'Ondata superata!');toast('+ bonus ondata');gainCoins(10*G.wave);G.coinsEarned+=10*G.wave;persist()}}
 for(let i=G.zombies.length-1;i>=0;i--){const o=G.zombies[i],T=ZT[o.type];
 if(o.dead){o.dt+=dt;if(o.dt>2.6){G.zombies.splice(i,1);delete G.zById[o.id]}continue}
-if(o.flash>0)o.flash-=dt;if(o.slow>0)o.slow-=dt;if(o.stun>0)o.stun-=dt;
+if(o.flash>0)o.flash-=dt;if(o.slow>0)o.slow-=dt;if(o.stun>0)o.stun-=dt;if(o.rise>0)o.rise=Math.max(0,o.rise-dt);
 if(o.dummy){const ddx=P.x-o.x,ddz=P.z-o.z,dd=Math.hypot(ddx,ddz)||1;if(dd>3.2){o.x+=ddx/dd*1.1*dt;o.z+=ddz/dd*1.1*dt;o.ph+=dt*3}o.ry=Math.atan2(ddx,ddz);pushOut(o,.5);o.tx=o.x;o.tz=o.z;continue}
 let tgt=null,bd=1e9;for(const t of tg){const d=Math.hypot(t.x-o.x,t.z-o.z);if(d<bd){bd=d;tgt=t}}if(!tgt)continue;
 const dx=tgt.x-o.x,dz=tgt.z-o.z,dist=bd;o.ry=angLerp(o.ry,Math.atan2(dx,dz),Math.min(1,dt*6));
@@ -1196,7 +1205,7 @@ function clientInterp(dt){const k=Math.min(1,dt*10);for(const o of G.zombies){o.
 /* ---- Rendering zombie / hazard ---- */
 const Y=new THREE.Vector3(0,1,0);
 function syncZ(dt){for(const o of G.zombies){let m=ZM[o.id];if(!m){m=ZM[o.id]=mkZombie(o.type);scene.add(m.g)}const T=ZT[o.type];
-m.g.position.set(o.x,0,o.z);m.g.rotation.y=o.ry;
+m.g.position.set(o.x,G.mode2d?SIDE_FLOOR_Y-(o.rise||0)*1.4:0,o.z);m.g.rotation.y=o.ry;
 if(o.dead){const p=Math.min(1,o.dt/.6);m.g.rotation.x=-p*1.5;m.g.position.y=-Math.max(0,o.dt-1.6)*.6;m.bar.visible=false;continue}
 const s=Math.sin(o.ph)*.6;m.legL.rotation.x=s;m.legR.rotation.x=-s;const bob=Math.sin(o.ph*.8)*.12;
 if(o.wind>0||(o.st&&o.st!=='walk')){const a=Math.sin(G.t*12)*.15;m.armL.rotation.x=-2.5+a;m.armR.rotation.x=-2.5-a}else{m.armL.rotation.x=-1.3+bob;m.armR.rotation.x=-1.3-bob}
