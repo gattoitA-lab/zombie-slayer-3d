@@ -36,5 +36,6 @@ Dopo circa un minuto la nuova versione è online. In collaborazione, chi lavora 
 
 ## ⚠️ Note
 
-- Il salvataggio dei progressi e le lobby online tra dispositivi diversi richiedono la configurazione Firebase dentro `index.html` (`FIREBASE_CONFIG`). Senza config, account e monete restano nel browser e le lobby funzionano tra schede dello stesso browser.
+- L'online tra dispositivi funziona senza configurazione tramite un broker MQTT pubblico (`broker.emqx.io`): crea una lobby e condividi codice o link. Le stanze sono pubbliche sul broker, quindi non condividere dati personali.
+- Firebase (`FIREBASE_CONFIG`) è opzionale: se configurato, account e salvataggi passano nel cloud. Senza Firebase i progressi restano nel browser, ma le lobby online funzionano comunque tra dispositivi.
 - La grafica 3D usa WebGL, quindi serve un browser aggiornato.

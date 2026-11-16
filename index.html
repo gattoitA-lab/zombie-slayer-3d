@@ -400,8 +400,33 @@ async putLobby(l){await this.F.setDoc(this.F.doc(this.db,'lobbies',l.code),{j:JS
 async delLobby(c){await this.F.deleteDoc(this.F.doc(this.db,'lobbies',c))},
 peers(code,id,cb){const F=this.F,col=F.collection(this.db,'lobbies',code,'peers');const un=F.onSnapshot(col,snap=>snap.docChanges().forEach(c=>{if(c.doc.id===id)return;if(c.type==='removed')cb(c.doc.id,null);else cb(c.doc.id,JSON.parse(c.doc.data().j))}));
 return{publish(d){F.setDoc(F.doc(col,id),{j:JSON.stringify(d)}).catch(()=>{})},leave(){un();F.deleteDoc(F.doc(col,id)).catch(()=>{})}}}};
+const MQ_P='zs3d/v1/',MQ_LOB=MQ_P+'lob/',MQ_ROOM=MQ_P+'room/',MQ_URL='wss://broker.emqx.io:8084/mqtt';
+const MqttBE={...LocalBE,rate:8,net:true,ready:false,failed:false,cli:null,lobbies:{},room:null,
+async init(){const mod=await import('https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.esm.js'),mqtt=mod.default||mod;
+ return await new Promise((res,rej)=>{let settled=false;const cli=mqtt.connect(MQ_URL,{clientId:'zs3d_'+Math.random().toString(36).slice(2,12),clean:true,connectTimeout:5000,reconnectPeriod:2500,keepalive:30});this.cli=cli;
+  const tm=setTimeout(()=>{if(settled)return;settled=true;this.failed=true;try{cli.end(true)}catch{};rej(new Error('Broker non raggiungibile'))},6500);
+  cli.on('connect',()=>{this.ready=true;cli.subscribe(MQ_LOB+'#',{qos:0});if(this.room)cli.subscribe(MQ_ROOM+this.room.code,{qos:0});if(!settled){settled=true;clearTimeout(tm);res()}});
+  cli.on('message',(t,p)=>this.onMsg(t,p));
+  cli.on('close',()=>{this.ready=false});cli.on('offline',()=>{this.ready=false});
+  cli.on('error',e=>{if(!settled){settled=true;clearTimeout(tm);this.failed=true;try{cli.end(true)}catch{};rej(e)}})})},
+async ensure(){if(this.ready)return true;if(this.failed)return false;if(this.readyP)try{await Promise.race([this.readyP,new Promise((_,rej)=>setTimeout(()=>rej(0),5000))])}catch{}if(this.ready)return true;if(this.failed||!this.cli)return false;
+ await new Promise(r=>{let d=false;const t=setTimeout(()=>{if(!d){d=true;r()}},2500);this.cli.once('connect',()=>{if(!d){d=true;clearTimeout(t);r()}})});return this.ready},
+onMsg(topic,payload){const s=payload?payload.toString():'';if(!s&&topic.startsWith(MQ_LOB)){delete this.lobbies[topic.slice(MQ_LOB.length)];return}
+ if(topic.startsWith(MQ_LOB)){try{const l=JSON.parse(s);if(l&&l.code)this.lobbies[l.code]=l}catch{}return}
+ if(topic.startsWith(MQ_ROOM)&&this.room){try{const m=JSON.parse(s);if(m&&m.id!==this.room.id)this.room.cb(m.id,m.doc)}catch{}}},
+async listLobbies(){if(!(await this.ensure()))return LocalBE.listLobbies();await new Promise(r=>setTimeout(r,400));const n=Date.now();return Object.values(this.lobbies).filter(l=>l&&n-(l.ts||0)<15000)},
+async getLobby(c){c=(c||'').toUpperCase().trim();if(!c)return null;if(!(await this.ensure()))return LocalBE.getLobby(c);
+ for(let i=0;i<12;i++){const l=this.lobbies[c];if(l&&Date.now()-(l.ts||0)<15000)return l;await new Promise(r=>setTimeout(r,200))}return null},
+async putLobby(l){const ll={...l,ts:Date.now()};this.lobbies[ll.code]=ll;if(!(await this.ensure()))return LocalBE.putLobby(ll);try{this.cli.publish(MQ_LOB+ll.code,JSON.stringify(ll),{qos:0,retain:true})}catch{}},
+async delLobby(c){delete this.lobbies[c];if(!(await this.ensure()))return LocalBE.delLobby(c);try{this.cli.publish(MQ_LOB+c,'',{qos:0,retain:true})}catch{}},
+peers(code,id,cb){const self=this,h={code,id,cb,last:null,closed:false,fallback:null},topic=MQ_ROOM+code;this.room=h;
+ this.ensure().then(ok=>{if(h.closed)return;if(!ok){if(self.room===h){self.room=null;h.fallback=LocalBE.peers(code,id,cb);if(h.last)h.fallback.publish(h.last)}return}if(self.room!==h)return;try{self.cli.subscribe(topic,{qos:0});if(h.last)self.cli.publish(topic,JSON.stringify({id,doc:h.last}),{qos:0})}catch{}});
+ return{publish(doc){h.last=doc;if(h.closed)return;if(h.fallback){h.fallback.publish(doc);return}if(self.ready)try{self.cli.publish(topic,JSON.stringify({id,doc}),{qos:0})}catch{}},
+ leave(){if(h.closed)return;h.closed=true;if(self.room===h)self.room=null;if(h.fallback){h.fallback.leave();return}if(self.cli){try{if(self.ready)self.cli.publish(topic,JSON.stringify({id,doc:null}),{qos:0})}catch{}try{self.cli.unsubscribe(topic)}catch{}}}}}
+};
 let BE=LocalBE;
 if(USE_FB){try{await FireBE.init();BE=FireBE}catch(e){console.warn('Firebase non disponibile, uso salvataggio locale',e)}}
+else{BE=MqttBE;MqttBE.readyP=MqttBE.init().catch(e=>{console.warn('Broker online non disponibile, uso lobby locali',e);MqttBE.failed=true;return false})}
 async function flush(){if(!dirty)return;dirty=false;try{await BE.save(U.uid,S)}catch(e){console.warn(e)}}
 const persist=now=>{dirty=true;if(now)flush()};
 setInterval(flush,8000);addEventListener('beforeunload',()=>{dirty&&BE.save(U.uid,S)});
@@ -617,9 +642,9 @@ else if(kind==='laser'){bx(g,.1,.14,1.15,MT(0xdfe8f0,{metalness:.85,roughness:.2
 else if(kind==='rocket'){const tube=new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,1.1,10),MT(0x3d4a2a));tube.rotation.x=Math.PI/2;tube.position.z=.5;g.add(tube);const tip=new THREE.Mesh(new THREE.ConeGeometry(.14,.3,10),MT(0xb03020,{emissive:col,emissiveIntensity:.7}));tip.rotation.x=Math.PI/2;tip.position.z=1.12;g.add(tip)}
 else if(kind==='flame'){bx(g,.1,.14,.4,metal,0,0,.16);const n=new THREE.Mesh(new THREE.CylinderGeometry(.09,.03,.5,8),MT(0x6a3a1a));n.rotation.x=Math.PI/2;n.position.z=.6;g.add(n);const tank=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.5,10),MT(0xa03020));tank.rotation.x=Math.PI/2;tank.position.set(0,.12,-.3);g.add(tank)}
 g.position.set(0,-.7,0);g.traverse(o=>{if(o.isMesh)o.castShadow=true});return g}
-function mkPlayer(hid,eq,skn){const H=HEROES[hid]||HEROES.sword,SK=skinOf(hid,skn),C=SK.c;
-const h=human({skin:0xe8b48a,shirt:C.shirt,pants:C.pants,arm:C.arm});addHelm(h.head,ITEMS[eq.h].col);addArmor(h.body,ITEMS[eq.a].col);if(C.acc)mkAcc(C.acc,C.accCol,h.head);else if(hid==='ninja')bx(h.head,.46,.1,.46,MT(0xaa1111),0,.12,0);
-const tc=eq.t==='t0'?C.fx:ITEMS[eq.t].col;
+function mkPlayer(hid,eq,skn){const H=HEROES[hid]||HEROES.sword,SK=skinOf(hid,skn),C=SK.c;eq=eq||{};const hIt=ITEMS[eq.h]||ITEMS.h0,aIt=ITEMS[eq.a]||ITEMS.a0,tId=eq.t||'t0',tIt=ITEMS[tId]||ITEMS.t0;
+const h=human({skin:0xe8b48a,shirt:C.shirt,pants:C.pants,arm:C.arm});addHelm(h.head,hIt.col);addArmor(h.body,aIt.col);if(C.acc)mkAcc(C.acc,C.accCol,h.head);else if(hid==='ninja')bx(h.head,.46,.1,.46,MT(0xaa1111),0,.12,0);
+const tc=tId==='t0'?C.fx:tIt.col;
 if(H.kind==='hat'){const hat=mkHat(0x222222);hat.position.y=.48;h.head.add(hat);h.handHat=mkHat(0xe0a020);h.handHat.scale.setScalar(.8);h.handHat.position.set(0,-.7,0);h.armR.add(h.handHat)}
 else h.armR.add(mkWeapon(H.kind,C.fx));
 h.trail=new THREE.Mesh(new THREE.RingGeometry(.9,2.9,32,1,-Math.PI/2-1.3,2.6),new THREE.MeshBasicMaterial({color:tc||0xffffff,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));h.trail.rotation.x=-Math.PI/2;h.trail.position.y=1.2;h.trail.visible=false;h.g.add(h.trail);
@@ -678,7 +703,7 @@ function updFx(dt){for(let i=fxs.length-1;i>=0;i--){const e=fxs[i];e.t+=dt;const
 /* ================= RETE ================= */
 const NETC={status:'offline',lastHost:0,retryAt:0,deadline:0,busy:false,nulls:0,weak:false,recoveredAt:0};
 const Net={on:false,code:null,id:'p'+Math.random().toString(36).slice(2,9),sid:'',host:false,peers:{},evn:0,evq:[],lastN:{},lastSid:{},rtt:{},pingT:0,joinedAt:0,state:{},h:null,force:false,hook:null,leftHook:null,tm:null,
-join(code,host){this.leave();this.code=code;this.host=host;this.on=true;this.sid=Math.random().toString(36).slice(2,10);this.peers={};this.evq=[];this.lastN={};this.lastSid={};this.rtt={};this.pingT=0;this.joinedAt=Date.now();this.state={host};if(host){NETC.status='online';NETC.weak=false}else if(NETC.status!=='reconnecting'){NETC.status='connecting';NETC.lastHost=Date.now()};this.h=BE.peers(code,this.id,(id,doc)=>this.recv(id,doc));this.tm=setInterval(()=>this.tick(),1000/BE.rate)},
+join(code,host){this.leave();this.code=code;this.host=host;this.on=true;this.sid=Math.random().toString(36).slice(2,10);this.peers={};this.evq=[];this.lastN={};this.lastSid={};this.rtt={};this.pingT=0;this.joinedAt=Date.now();this.state={host,n:U.name,hero:S.hero,eh:S.eq.h,ea:S.eq.a,et:S.eq.t,sk:curSkin().id,hp:Math.round(P.hp),out:0,ing:false};if(host){NETC.status='online';NETC.weak=false}else if(NETC.status!=='reconnecting'){NETC.status='connecting';NETC.lastHost=Date.now()};this.h=BE.peers(code,this.id,(id,doc)=>this.recv(id,doc));this.tm=setInterval(()=>this.tick(),1000/BE.rate)},
 leave(){if(this.h){try{this.h.leave()}catch{}}clearInterval(this.tm);this.h=null;this.on=false;this.sid='';this.peers={};this.lastSid={};this.rtt={};this.code=null},
 recv(id,doc){if(id===this.id)return;if(!doc){delete this.peers[id];delete this.lastN[id];delete this.lastSid[id];delete this.rtt[id];this.leftHook&&this.leftHook(id);return}if(doc.sid&&doc.sid!==this.lastSid[id]){this.lastSid[id]=doc.sid;this.lastN[id]=0}this.peers[id]={doc,seen:Date.now()};for(const e of doc.ev||[]){if(e.ts<this.joinedAt-1500)continue;if(e.n>(this.lastN[id]||0)){this.lastN[id]=e.n;handleEvent(id,e.t,e.d)}}if(doc.s&&doc.s.host)netHostSeen(id);this.hook&&this.hook(id,doc)},
 event(t,d){if(!this.on)return;this.evq.push({n:++this.evn,t,d,ts:Date.now()});if(this.evq.length>30)this.evq.shift();this.force=true},
@@ -1145,7 +1170,7 @@ if(G.gm==='royale'){const r0=Math.min(40,(G.bound||44)*.9);G.storm={t:0,need:180
 const H=heroStat(),sp=spawnPoint();Object.assign(P,{x:sp.x,y:0,z:sp.z,vy:0,hp:H.hp,mhp:H.hp,burn:0,poison:0,shieldT:0,cd:{},fireT:0,fireCol:fxCol(),hatOut:false,swingT:9,atk:0,kx:0,kz:0,down:0,out:false,inv:isPvp?1.5:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null});
 rev.p=0;rev.tgt=null;rev.cool=0;barItems=abilityBar();
 P.model=mkPlayer(S.hero,S.eq,curSkin().id);scene.add(P.model.g);cam.yaw=0;cam.pitch=.35;cam.dist=isTouch?6:5;
-if(Net.on){Object.assign(Net.state,{ing:true,run:true,map:G.map,diff:G.diff,seed:G.seed,gm:G.gm,pvp:G.pvp});if(G.pvp&&G.host)Net.state.tms=G.teams;else delete Net.state.tms;if(c.online)qAdd('online',1)}
+if(Net.on){Object.assign(Net.state,{ing:true,run:true,map:G.map,diff:G.diff,seed:G.seed,gm:G.gm,pvp:G.pvp,hp:Math.round(P.hp),out:0,tm:G.pvp?pvpMyTeam():0});if(G.pvp&&G.host)Net.state.tms=G.teams;else delete Net.state.tms;if(c.online)qAdd('online',1)}
 buildPowerBar();showScr('hud');closeModal();$('#pause').classList.add('hidden');$('#over').classList.add('hidden');$('#boss').classList.add('hidden');$('#down').classList.remove('on');$('#revhint').classList.remove('on');$('#tutbox').classList.add('hidden');
 banner(G.tut?'Tutorial':G.gm==='ops'?'Garden Ops':G.gm==='royale'?'🌪 Royale':G.gm==='pvp2'?'⚔ 2v2':G.gm==='pvp1'?'⚔ 1v1':'Preparati...');updateLockHint();
 setTimeout(()=>{if(G.mode==='play')toast(isTouch?'🕹 Joystick a sinistra · trascina a destra per la visuale · 🤝 rianima':'🖱️ Tasto destro: visuale · Sinistro: attacco · E: rianima · Shift: blocco mouse')},900)}
@@ -1322,7 +1347,7 @@ const genCode=()=>Array.from({length:5},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[M
 async function openOnline(){initAudio();openModal('🌐 Online','<p>Caricamento lobby...</p>');let ls=[];try{ls=await BE.listLobbies()}catch(e){}ls=ls.filter(l=>!l.priv);
 let h=`<div class="row"><button class="btn" data-a="quick">⚡ Partita rapida</button><button class="btn alt" data-a="create">➕ Crea lobby</button></div><div class="row" style="margin:8px 0"><input id="jc" placeholder="Codice lobby" maxlength="5" style="text-transform:uppercase"><button class="btn sm" data-a="joinc">Entra</button></div><h3>Lobby pubbliche <button class="btn sm ghost" data-a="refresh">↻</button></h3>`;
 h+=ls.length?ls.map(l=>`<div class="lob"><div><b>${l.name}</b><br><span class="small">${gmName(l.gm)} · ${mName(l.map)} · ${DIFFS[l.diff].n} · 👥 ${l.players||1}/4${l.run?' · in corso':''}</span></div><button class="btn sm" data-a="joinl" data-id="${l.code}">Entra</button></div>`).join(''):'<p class="small">Nessuna lobby pubblica trovata. Creane una!</p>';
-if(!USE_FB)h+='<p class="small">Modalità locale: le lobby sono visibili tra schede/finestre dello stesso browser. Per giocare con persone su altri dispositivi serve la configurazione Firebase (vedi inizio del file).</p>';
+if(!USE_FB)h+=BE.net&&!MqttBE.failed?'<p class="small">Online tra dispositivi attivo: crea una lobby o entra con codice/link. Le stanze passano da un broker pubblico: non condividere dati personali.</p>':'<p class="small">Online locale: le lobby sono visibili tra schede/finestre dello stesso browser. Il broker online non è raggiungibile.</p>';
 $('#mbody').innerHTML=h;
 acts.refresh=openOnline;acts.create=openCreate;acts.joinc=()=>joinLobby($('#jc').value);acts.joinl=id=>joinLobby(id);
 acts.quick=async()=>{const t=(await BE.listLobbies()).filter(l=>!l.priv&&!l.run&&(l.players||1)<4);if(t.length)joinLobby(t[0].code);else createLobby({name:U.name+' (rapida)',map:'random',diff:1,priv:false})}}
