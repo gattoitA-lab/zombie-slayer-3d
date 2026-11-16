@@ -637,11 +637,11 @@ for(let i=0;i<nl;i++){const l=ld[i];l.y-=l.v*dt;l.x+=Math.sin(t*.8+l.ph)*.8*dt+.
 let x=l.x+cx,z=l.z+cz;dm.position.set(x,l.y,z);dm.rotation.set(t*l.rs+l.ph,t*l.rs*.7,0);dm.scale.setScalar(1);dm.updateMatrix();lv.setMatrixAt(i,dm.matrix)}lv.instanceMatrix.needsUpdate=true}}}
 function rebuildEnv(){if(ENV){scene.remove(ENV.grp);ENV.grp.traverse(o=>{if(o.geometry&&o.geometry!==BOX&&o.geometry!==grassGeo)o.geometry.dispose()})}
 const pl=G.mode==='play';ENV=buildEnv(pl?G.map:'village',pl?G.seed:7,!pl);G.obst=ENV.obst;G.bound=ENV.bound||44}
-function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];G.structs=[];G.plats=[];G.movers=[];if(ENV)ENV.grp.visible=true}
+function clearArena(){if(G.arenaGroup){scene.remove(G.arenaGroup);G.arenaGroup=null}for(const h of G.holes||[])scene.remove(h.m);G.holes=[];for(const d of G.debris||[])scene.remove(d.m);G.debris=[];G.structs=[];G.plats=[];G.movers=[];if(ENV)ENV.grp.visible=true}
 function buildArena(){
  if(!G.mode2d)return;
  const rows=arenaGrid(G.arena)||arenaRows(G.arenaPreset).split('/'),off=(ARENA_N-1)*ARENA_CELL/2,grp=new THREE.Group();
- G.structs=[];G.plats=[];G.movers=[];G.arenaGroup=grp;scene.add(grp);
+ G.structs=[];G.plats=[];G.movers=[];G.debris=[];G.arenaGroup=grp;scene.add(grp);
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(160,90),new THREE.MeshBasicMaterial({color:0x8bd7ff}));sky.position.set(0,20,-30);grp.add(sky);
  const sea=new THREE.Mesh(new THREE.PlaneGeometry(160,34),new THREE.MeshBasicMaterial({color:0x2d84bb}));sea.position.set(0,-9,-29.8);grp.add(sea);
  const cloudMat=MT(0xffffff,{roughness:1});
@@ -669,8 +669,28 @@ function buildArena(){
  G.bound=off+ARENA_CELL+GROUND_EXT*ARENA_CELL;if(ENV)ENV.grp.visible=false;
 }
 function updMovers(){if(!G.mode2d)return;for(const m of G.movers||[]){const px=m.pl.x;if(m.axis==='x')m.pl.x=m.baseX+Math.sin(G.t*m.speed+m.phase)*m.amp;else m.pl.y=m.baseY+Math.sin(G.t*m.speed+m.phase)*m.amp;m.mesh.position.set(m.pl.x,m.pl.y-.4,0);if(Math.abs(P.y-m.pl.y)<.2&&P.x>=m.pl.x-m.w/2-.35&&P.x<=m.pl.x+m.w/2+.35){P.x+=m.pl.x-px;if(m.axis==='y')P.y=m.pl.y}}}
+function spawnDebris(s){
+ if(!G.mode2d)return;const n=2+Math.floor(Math.random()*3),mat=MT(s.ground?0xb43b2c:0x4f8a4f,{roughness:.8});
+ for(let i=0;i<n;i++){const sz=.45+Math.random()*.35,m=bx(scene,sz,sz,sz,mat,s.x+(Math.random()-.5)*(s.w||3)*.7,(s.y||SIDE_FLOOR_Y)+.4+Math.random()*.4,0);m.castShadow=true;G.debris.push({m,x:m.position.x,y:m.position.y,z:0,vx:(Math.random()-.5)*8,vy:4+Math.random()*5,life:18,kick:false,hit:new Set(),spin:(Math.random()-.5)*5})}
+}
+function kickDebris(){
+ if(!G.mode2d)return;const fx=Math.sin(P.face),fz=Math.cos(P.face);
+ for(const d of G.debris){const dx=d.x-P.x,dz=d.z-P.z,dd=Math.hypot(dx,dz);if(dd<3.4&&Math.abs(d.y-(P.y+1))<2.2&&(dd<.01||(dx*fx+dz*fz)/dd>.05)){d.vx=fx*24;d.vz=fz*24;d.vy=8;d.kick=true;d.hit.clear();d.life=Math.max(d.life,12);burst(d.x,d.y,d.z,0xffd24a,8,4,3)}}
+}
+function updDebris(dt){
+ for(let i=(G.debris||[]).length-1;i>=0;i--){const d=G.debris[i];d.life-=dt;d.vy-=30*dt;const py=d.y;d.x+=d.vx*dt;d.y+=d.vy*dt;d.z=0;let land=null;
+  for(const pl of G.plats||[])if(d.vy<=0&&d.x>=pl.x-pl.w/2-.2&&d.x<=pl.x+pl.w/2+.2&&py>=pl.y-.1&&d.y<=pl.y+.3&&(!land||pl.y>land.y))land=pl;
+  if(land){d.y=land.y+.3;d.vy*=-.25;d.vx*=.8;if(Math.abs(d.vy)<1)d.vy=0}
+  if(d.life<=0||d.y<-10){scene.remove(d.m);G.debris.splice(i,1);continue}
+  d.m.position.set(d.x,d.y,d.z);d.m.rotation.x+=d.spin*dt;d.m.rotation.z+=d.spin*.7*dt;
+  if(d.kick&&Math.hypot(d.vx,d.vy)>4){for(const z of G.zombies){if(z.dead||d.hit.has(z.id))continue;if(Math.hypot(z.x-d.x,z.z-d.z)<.8*ZT[z.type].scale+.3&&Math.abs((z.y??0)+.5-d.y)<1.4){d.hit.add(z.id);sendHit(z,18,d.vx*.4,0,0xffd24a)}}}
+ }
+}
+function updStructs(dt){
+ for(const s of G.structs||[]){if(!s.dead||s.respawnT==null)continue;s.respawnT-=dt;if(s.respawnT>0)continue;s.dead=false;s.hp=100;s.respawnT=0;s.mesh.visible=true;s.mesh.scale.y=s.h;s.mesh.position.y=s.baseY;if(G.arenaGroup&&s.mesh.parent!==G.arenaGroup)G.arenaGroup.add(s.mesh);if(s.pl&&!G.plats.includes(s.pl))G.plats.push(s.pl);burst(s.x,(s.y||0)-.2,s.z,s.ground?0xb43b2c:0x4f8a4f,10,4,4)}
+}
 function destroyStruct(s,remote){
- if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const pi=G.plats?.indexOf(s.pl);if(pi>=0)G.plats.splice(pi,1);burst(s.x,(s.y||0)+.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
+ if(!s||s.dead)return;s.dead=true;s.respawnT=10;scene.remove(s.mesh);const pi=G.plats?.indexOf(s.pl);if(pi>=0)G.plats.splice(pi,1);spawnDebris(s);burst(s.x,(s.y||0)+.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
 }
 function damageStructs(x,z,r,dmg,y){
  if(!G.mode2d||!G.destructStruct||!G.structs?.length)return;
@@ -787,7 +807,7 @@ this.h.publish({sid:this.sid,s:this.state,ev:this.evq,ts:n});this.force=false},
 count(){return 1+Object.keys(this.peers).length}};
 
 /* ================= STATO DI GIOCO ================= */
-const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],plats:[],holes:[],arenaGroup:null,movers:[]};
+const G={mode:'menu',host:true,online:false,map:'village',seed:7,diff:1,plvl:1,wave:0,state:'inter',inter:3,spawnQ:[],spT:0,zombies:[],zById:{},hazards:[],hById:{},nid:1,kills:0,coinsEarned:0,t:0,shake:0,paused:false,over:false,remote:{},obst:[],snapT:0,started:0,gm:'survive',maxW:10,garden:null,final:null,storm:null,candyTypes:[],bound:44,tut:false,chkT:0,pvp:false,teams:null,mode2d:false,arena:'',arenaPreset:'open',destructStruct:false,destructFloor:false,structs:[],plats:[],holes:[],arenaGroup:null,movers:[],debris:[]};
 const P={x:0,y:0,z:0,vy:0,face:0,hp:100,mhp:100,burn:0,poison:0,shieldT:0,swingT:9,swingHit:true,atk:0,cd:{},fireT:0,fireTick:0,fireCol:0xff7a1a,mv:0,sw:0,kx:0,kz:0,rd:0,rt:0,recoil:0,hatOut:false,model:null,down:0,out:false,inv:0,regen:0,fury:0,rapid:0,candyStr:0,candySpd:0,candyHp:0,candyPoison:0,candyStorm:0,candyPT:0,cast:null,lastShot:0};
 const rev={tgt:null,p:0,cool:0};
 const cam={yaw:0,pitch:.35,dist:5};
@@ -984,7 +1004,7 @@ function spawnRocket(dmg,col,ang,spd){
  PR.push({k:'rocket',m,x:P.x+Math.sin(P.face)*.9,y:1.35+(G.mode2d?P.y:0),z:P.z+Math.cos(P.face)*.9,vx:Math.sin(a)*spd,vz:Math.cos(a)*spd,l:2.2,d:dmg,hit:new Set(),col})}
 function pvpAimAngle(){let b=null,bd=1e9;for(const e of pvpEnemies()){const d=Math.hypot(e.x-P.x,e.z-P.z);if(d<bd){bd=d;b=e}}return b?Math.atan2(b.x-P.x,b.z-P.z):P.face}
 function doAttack(){const H=heroStat(),col=fxCol(),dm=dmgNow(),k=H.kind;P.atk=H.rate*(P.rapid>0?.55:1);P.face=G.mode2d?pvpAimAngle():cam.yaw;
-if(G.mode2d){const ax=P.x+Math.sin(P.face)*1.5,az=P.z+Math.cos(P.face)*1.5,ay=P.y+1;if(G.destructStruct)damageStructs(ax,az,3,dm,ay);if(G.destructFloor&&performance.now()-(doAttack.fT||0)>650){doAttack.fT=performance.now();breakFloor(ax,az,2.3,false,ay)}}
+if(G.mode2d){kickDebris();const ax=P.x+Math.sin(P.face)*1.5,az=P.z+Math.cos(P.face)*1.5,ay=P.y+1;if(G.destructStruct)damageStructs(ax,az,3,dm,ay);if(G.destructFloor&&performance.now()-(doAttack.fT||0)>650){doAttack.fT=performance.now();breakFloor(ax,az,2.3,false,ay)}}
 if(k==='sword'||k==='spear'||k==='hammer'){P.swingT=0;P.swingHit=false;P.sw++;sfx(k==='hammer'?'boom':'swing')}
 else if(k==='gun'){shootBullet(1,0,col,dm);P.recoil=.4;P.sw++;sfx('shoot')}
 else if(k==='smg'){shootBullet(1,.05,col,dm);P.recoil=.16;P.sw++;sfx('shoot')}
@@ -1068,7 +1088,7 @@ if(G.mode2d){P.x+=clamp(ix,-1,1)*spd*dt+P.kx*dt;P.z=0;P.kz=0;P.mv=Math.abs(clamp
 P.kx*=Math.pow(.02,dt);P.kz*=Math.pow(.02,dt);
 if(P.mv>.5){P.stepT=(P.stepT||0)+dt*(.9+P.mv*.08);if(P.stepT>=.38){P.stepT=0;if(hapticFn)hapticFn('step')}}else P.stepT=0;
 const prevY=P.y;P.vy-=26*dt;P.y+=P.vy*dt;let gr=false;
-if(G.mode2d){const land=sideLand(prevY);if(land){P.y=land.y;P.vy=0;gr=true}if(P.y<-10){if(G.pvp){P.hp=0;P.y=0;pvpKO();return}const sp=spawnPoint();P.x=sp.x;P.z=0;P.y=sp.y||0;P.vy=0;P.kx=0;P.kz=0}}
+if(G.mode2d){const land=sideLand(prevY);if(land){P.y=land.y;P.vy=0;gr=true}if(P.y<-10){if(G.pvp){P.hp=0;P.y=0;pvpKO();return}const sp=spawnPoint();P.x=sp.x;P.z=0;P.y=sp.y||0;P.vy=0;P.kx=0;P.kz=0;P.hp=Math.max(1,P.hp-10);P.inv=Math.max(P.inv,1);banner('💥 Caduto! -10 HP')}}
 else if(P.y<=0){P.y=0;P.vy=0;gr=true}
 if((I.jump||I.gjump)&&gr&&P.burn<=0){P.vy=G.mode2d?13:9}
 if(G.mode2d)sidePushOut(P);else pushOut(P,.5);
@@ -1257,7 +1277,7 @@ $('#cross').style.opacity=(fp||HEROES[S.hero].kind==='gun'||locked()||lookHeld)?
 
 /* ================= FLUSSO PARTITA ================= */
 function startGame(c){initAudio();clearMenuHero();stopGame(true);
-Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],plats:[],holes:[],arenaGroup:null,movers:[]});
+Object.assign(G,{mode:'play',online:!!c.online,host:c.host!==false,map:c.map==='random'?anyMap():c.map,seed:c.seed||1,diff:c.diff,plvl:lvlInfo(S.xp).l,gm:c.gm||'survive',tut:!!c.tut,maxW:10,garden:null,final:null,storm:null,candyTypes:[],chkT:0,wave:0,state:c.tut?'tut':'inter',inter:4,spawnQ:[],zombies:[],zById:{},hazards:[],hById:{},kills:0,coinsEarned:0,t:0,over:false,paused:false,started:0,snapT:0,shake:0,pvp:false,teams:null,mode2d:!!c.mode2d,arena:c.arena||'',arenaPreset:c.arenaPreset||'open',destructStruct:!!c.destructStruct,destructFloor:!!c.destructFloor,structs:[],plats:[],holes:[],arenaGroup:null,movers:[],debris:[]});
 G.started=0;if(c.map==='random'&&!c.online)G.map=G.map;else if(c.online)G.map=c.map;
 rebuildEnv();if(G.mode2d)buildArena();
 const isPvp=pvpMode(G.gm);
@@ -1848,7 +1868,7 @@ hold($('#bRev'),v=>I.rev=v);
 /* ================= LOOP ================= */
 let last=performance.now(),tAll=0;
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;tAll+=dt;updGamepad(dt);
-if(G.mode==='play'){const run=!(G.paused&&!Net.on);if(run){G.t+=dt;if(G.started===0)G.started=G.t;updMovers();updatePlayer(dt);if(G.host)hostSim(dt);else clientInterp(dt);updProj(dt);updRemote(dt);
+if(G.mode==='play'){const run=!(G.paused&&!Net.on);if(run){G.t+=dt;if(G.started===0)G.started=G.t;updMovers();updatePlayer(dt);if(G.host)hostSim(dt);else clientInterp(dt);updProj(dt);updStructs(dt);updDebris(dt);updRemote(dt);
  const H=heroStat(),m=P.model;if(m){m.g.position.set(P.x,P.y,P.z);m.g.rotation.y=P.face;const s=Math.sin(G.t*10)*clamp(P.mv/5,0,1)*.9;m.legL.rotation.x=s;m.legR.rotation.x=-s;m.armL.rotation.x=-s*.7;armPose(m,H,P.swingT,Math.min(.32,H.rate*.8),s,P.recoil);m.body.rotation.x=P.hp<=0?-1.5:0;if(m.handHat)m.handHat.visible=!P.hatOut;
  if(P.cast&&P.cast.t>0){P.cast.t-=dt;const cp=1-Math.max(0,P.cast.t)/P.cast.dur,cw=Math.sin(cp*Math.PI),ck=P.cast.kind;m.g.scale.setScalar(1);
   if(ck==='spin'){m.g.rotation.y=P.face+cp*Math.PI*2;m.armL.rotation.z=.9*cw;m.armR.rotation.z=-.9*cw}
