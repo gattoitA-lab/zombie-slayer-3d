@@ -974,6 +974,12 @@ Net.hook=(id,doc)=>{if(G.mode!=='play'||G.host||!LOBBY||id!==LOBBY.hostId||!doc.
 function hurtMe(a,fx){if(P.hp<=0||P.shieldT>0||P.inv>0||G.mode!=='play')return;P.hp-=a;if(hapticFn)hapticFn('hurt');sfx('hurt');$('#dmgfx').style.opacity=.8;setTimeout(()=>$('#dmgfx').style.opacity=0,200);G.shake=Math.max(G.shake,.25);
 if(fx==='fire'){P.burn=5;P.vy=9;P.rt=0;toast('🔥 In fiamme! Controlli impazziti!')}if(fx==='poison'){P.poison=8;P.vy=9;P.kx=(Math.random()-.5)*6;P.kz=(Math.random()-.5)*6;toast('☠️ Avvelenato!')}
 if(P.hp<=0){P.hp=0;if(G.pvp)pvpKO();else downPlayer()}}
+function obstacleHit(x0,z0,x1,z1,rad){
+ if(G.mode2d)return null;
+ const dx=x1-x0,dz=z1-z0,l2=dx*dx+dz*dz,r=rad||.12;
+ for(const b of G.obst||[]){let t=l2?(((b.x-x0)*dx+(b.z-z0)*dz)/l2):0;t=clamp(t,0,1);const cx=x0+dx*t,cz=z0+dz*t;if(Math.hypot(b.x-cx,b.z-cz)<(b.r||.5)+r)return b}
+ return null
+}
 function projMesh(col,size){const m=new THREE.Mesh(new THREE.SphereGeometry(size||.12,8,6),new THREE.MeshBasicMaterial({color:col}));m.userData.own=1;m.position.set(P.x,1.35+(G.mode2d?P.y:0),P.z);scene.add(m);return m}
 function shootBullet(n,spread,col,dmg,pierce,spd,size){
  P.lastShot=performance.now();
@@ -984,6 +990,7 @@ function shootBullet(n,spread,col,dmg,pierce,spd,size){
 function laserShot(dmg,col,range){
  P.lastShot=performance.now();
  range=range||60;const dx=Math.sin(P.face),dz=Math.cos(P.face),hits=[];
+ if(!G.mode2d)for(const b of G.obst||[]){const rx=b.x-P.x,rz=b.z-P.z,pr=rx*dx+rz*dz;if(pr>.2&&pr<range&&Math.abs(rx*dz-rz*dx)<(b.r||.5)+.25)range=Math.max(.2,pr-(b.r||.5))}
  for(const z of G.zombies){if(z.dead)continue;const rx=z.x-P.x,rz=z.z-P.z,pr=rx*dx+rz*dz;if(pr<0||pr>range)continue;const pd=Math.abs(rx*dz-rz*dx);if(pd<.85*ZT[z.type].scale+.35&&Math.abs((z.y??0)+1-(P.y+1.35))<1.3*ZT[z.type].scale+.4)hits.push({z,pr})}
  hits.sort((a,b)=>a.pr-b.pr);
  for(const h of hits)sendHit(h.z,dmg,dx*2,dz*2,col);
@@ -1105,17 +1112,17 @@ if(P.fireT>0){P.fireT-=dt;P.fireTick-=dt;if(P.fireTick<=0){P.fireTick=.5;for(con
 P.recoil*=Math.pow(.01,dt);
 }
 function updProj(dt){for(let i=PR.length-1;i>=0;i--){const p=PR[i];let rm=false;
-if(p.k==='b'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y||1.35,p.z);
- for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.7*ZT[z.type].scale+.25&&Math.abs((p.y||0)-((z.y??0)+1))<1.3*ZT[z.type].scale+.35){p.hit.add(z.id);sendHit(z,p.d,p.vx*.1,p.vz*.1,p.col);if(p.pierce>0)p.pierce--;else{rm=true;break}}}
+if(p.k==='b'){const ox=p.x,oz=p.z;p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y||1.35,p.z);const blocked=obstacleHit(ox,oz,p.x,p.z,p.size||.12);if(blocked){rm=true;burst(p.x,p.y||1.35,p.z,0x9a7a4a,5,3,3);sfx('hit')}
+ else{for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.7*ZT[z.type].scale+.25&&Math.abs((p.y||0)-((z.y??0)+1))<1.3*ZT[z.type].scale+.35){p.hit.add(z.id);sendHit(z,p.d,p.vx*.1,p.vz*.1,p.col);if(p.pierce>0)p.pierce--;else{rm=true;break}}}
  if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<.85&&Math.abs((p.y||0)-((e.y||0)+1))<1.4){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.1,p.vz*.1);if(p.pierce>0)p.pierce--;else{rm=true;break}}}
- if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.8,p.d,p.y||1.35);
+ if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.8,p.d,p.y||1.35)}
  if(p.l<=0)rm=true}
-else if(p.k==='flame'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;const kk=Math.max(.15,p.l/.42);p.m.position.set(p.x,p.y,p.z);p.m.scale.setScalar(kk);p.m.material.opacity=.85*kk;
+else if(p.k==='flame'){const ox=p.x,oz=p.z;p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;const kk=Math.max(.15,p.l/.42);p.m.position.set(p.x,p.y,p.z);p.m.scale.setScalar(kk);p.m.material.opacity=.85*kk;if(obstacleHit(ox,oz,p.x,p.z,.25)){rm=true;burst(p.x,p.y,p.z,0x9a7a4a,3,2,2)}else{
  for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<1.1+ZT[z.type].scale*.4&&Math.abs((p.y||0)-((z.y??0)+1))<1.6){p.hit.add(z.id);sendHit(z,p.d,p.vx*.05,p.vz*.05,p.col)}}if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.9,p.d*.5,p.y||1.35)
- if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<1.2&&Math.abs((p.y||0)-((e.y||0)+1))<1.6){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.05,p.vz*.05)}}
+ if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<1.2&&Math.abs((p.y||0)-((e.y||0)+1))<1.6){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.05,p.vz*.05)}}}
  if(p.l<=0)rm=true}
-else if(p.k==='rocket'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y,p.z);p.m.rotation.y+=dt*10;
- let hit=false;for(const z of G.zombies){if(z.dead)continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.9*ZT[z.type].scale+.45&&Math.abs((p.y||0)-((z.y??0)+1))<2){hit=true;break}}
+else if(p.k==='rocket'){const ox=p.x,oz=p.z;p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y,p.z);p.m.rotation.y+=dt*10;
+ let hit=!!obstacleHit(ox,oz,p.x,p.z,.24);for(const z of G.zombies){if(z.dead)continue;if(Math.hypot(z.x-p.x,z.z-p.z)<.9*ZT[z.type].scale+.45&&Math.abs((p.y||0)-((z.y??0)+1))<2){hit=true;break}}
  if(G.pvp)for(const e of pvpEnemies()){if(Math.hypot(e.x-p.x,e.z-p.z)<.95&&Math.abs((p.y||0)-((e.y||0)+1))<2){hit=true;break}}
  if(hit||p.l<=0){rm=true;P.lastShot=performance.now();if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,4.5,p.d,p.y||1.35);if(G.mode2d&&G.destructFloor)breakFloor(p.x,p.z,3,false,p.y);spawnFx('boom',p.x,p.z,p.col);Net.event('fx',{k:'boom',x:p.x,z:p.z,c:p.col});sfx('boom');G.shake=.4;
   for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-p.x,z.z-p.z)<4.5&&Math.abs((p.y||0)-((z.y??0)+1))<2.8)sendHit(z,p.d,Math.sin(P.face)*4,Math.cos(P.face)*4,p.col)
