@@ -379,7 +379,7 @@ const ZIDS=Object.keys(ZT);
 
 /* ================= SALVATAGGIO / BACKEND ================= */
 const isM=isTouch;
-const defSave=()=>({coins:150,xp:0,spd:0,candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},gp:{atk:7,jump:0,rev:1},mob:{side:'right',size:1}}});
+const defSave=()=>({coins:150,xp:0,spd:0,dmg:0,pow:0,candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},gp:{atk:7,jump:0,rev:1},mob:{side:'right',size:1}}});
 const skinList=hid=>SKINS[hid]||SKINS.sword;
 const skinOf=(hid,id)=>skinList(hid).find(s=>s.id===id)||skinList(hid)[0];
 const ownsSkin=id=>{for(const hs in SKINS){const s=SKINS[hs].find(x=>x.id===id);if(s)return s.price===0||(S.skins||[]).includes(id)}return false};
@@ -388,10 +388,19 @@ let S=defSave(),U={uid:'guest',name:'Ospite'},dirty=false;
 const keyb=a=>(S.set.keys&&S.set.keys[a])||({atk:'KeyF',jump:'Space',rev:'KeyE'})[a];
 const gpb=a=>{const v=S.set.gp&&S.set.gp[a];return v==null?({atk:7,jump:0,rev:1})[a]:v};
 const lvlInfo=xp=>{let l=1,n=100;while(xp>=n){xp-=n;l++;n=100+(l-1)*60}return{l,cur:xp,need:n}};
-const SPD_MAX=10,SPD_STEP=.04;
+const SPD_MAX=15,SPD_STEP=.04;
 const spdLv=()=>Math.min(SPD_MAX,S.spd||0);
 const spdMult=()=>1+SPD_STEP*spdLv();
 const spdCost=lv=>Math.round(60*Math.pow(1.28,lv)/5)*5;
+const DMG_MAX=15,DMG_STEP=.04;
+const dmgLv=()=>Math.min(DMG_MAX,S.dmg||0);
+const dmgMult=()=>1+DMG_STEP*dmgLv();
+const dmgCost=lv=>Math.round(90*Math.pow(1.28,lv)/5)*5;
+const POW_MAX=15,POW_STEP=.04,POW_CD_STEP=.02;
+const powLv=()=>Math.min(POW_MAX,S.pow||0);
+const powMult=()=>1+POW_STEP*powLv();
+const powCdMult=()=>1-POW_CD_STEP*powLv();
+const powCost=lv=>Math.round(120*Math.pow(1.28,lv)/5)*5;
 function addXp(n){n=Math.max(0,Math.round(n));const l0=lvlInfo(S.xp).l;S.xp+=n;const l1=lvlInfo(S.xp).l;if(l1>l0){let c=0;for(let l=l0+1;l<=l1;l++)c+=50+20*(l-1);S.coins+=c;levelUpFX(l1,c)}return l1-l0}
 const LocalBE={rate:12,acc(){try{return JSON.parse(localStorage.getItem('zs_acc')||'{}')}catch{return{}}},
 async hash(p){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('zs3d'+p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch{return btoa(p)}},
@@ -815,7 +824,7 @@ const I={x:0,z:0,jump:false,atk:false,kx:0,kz:0,jx:0,jz:0,gkx:0,gkz:0,gjump:fals
 const ZM={},HM={},PR=[];let menuHero=null,menuRot=0;
 const heroStat=()=>{const H=HEROES[S.hero],m=1+.03*(lvlInfo(S.xp).l-1);return{...H,dmg:H.dmg*m,hp:H.hp*(1+.02*(lvlInfo(S.xp).l-1))}};
 const fxCol=()=>curSkin().c.fx;
-const dmgNow=()=>{const H=heroStat();return H.dmg*(P.fury>0?1.6:1)*(P.candyStr>0?1.8:1)};
+const dmgNow=()=>{const H=heroStat();return H.dmg*dmgMult()*(P.fury>0?1.6:1)*(P.candyStr>0?1.8:1)};
 
 function toast(m){const d=document.createElement('div');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),2600)}
 let banT=0;function banner(m){const b=$('#banner');b.textContent=m;b.style.opacity=1;clearTimeout(banT);banT=setTimeout(()=>b.style.opacity=0,2400)}
@@ -1026,8 +1035,8 @@ function abilityBar(){const H=HEROES[S.hero],a=(H.ab||[]).map(k=>({...ABIL[k],id
 const ps=S.powers.map(id=>{const p=POWERS.find(x=>x.id===id);return p?{...p,key:'pw.'+id}:null}).filter(Boolean);return a.concat(ps)}
 function aoeHit(cx,cz,r,dmg,k,col){if(G.mode2d){if(G.destructStruct)damageStructs(cx,cz,r+1,dmg*1.5,P.y+1);if(G.destructFloor)breakFloor(cx,cz,Math.max(2.2,r*.55),false,P.y+1)}for(const z of G.zombies){if(z.dead)continue;const dx=z.x-cx,dz=z.z-cz,d=Math.hypot(dx,dz),rr=r+ZT[z.type].scale*.5;if(d<rr&&Math.abs((z.y??0)-P.y)<2.5)sendHit(z,dmg,dx/(d||1)*k,dz/(d||1)*k,col)}if(G.pvp)for(const e of pvpEnemies()){const dx=e.x-cx,dz=e.z-cz,d=Math.hypot(dx,dz);if(d<r+1&&Math.abs((e.y||0)-P.y)<2.5)hurtPlayer(e.id,dmg,dx/(d||1)*k,dz/(d||1)*k)}burst(cx,.6,cz,col||0xffaa33,18,8,6)}
 function useSlot(i){const a=barItems[i]||abilityBar()[i];if(!a||G.mode!=='play'||P.hp<=0||(P.cd[a.key]||0)>0)return;
-P.cd[a.key]=a.cd||1;sfx('power');qAdd('pow',1);P.cast={t:.55,dur:.55,kind:({spin:'spin',dash:'dash',roll:'dash',slam:'slam',quake:'slam',blast:'slam',inferno:'slam',kick:'slam',volley:'shoot',shuriken:'shoot',barrage:'shoot',pierce:'shoot',hats:'shoot',heal:'buff',regen:'buff',aegis:'buff',shield:'buff',freeze:'buff',smoke:'buff',bolt:'buff',fury:'rage',firewall:'rage',fire:'rage'})[a.id]||'buff'};
-const H=heroStat(),col=fxCol(),dm=dmgNow(),R=a.r||5;
+P.cd[a.key]=(a.cd||1)*powCdMult();sfx('power');qAdd('pow',1);P.cast={t:.55,dur:.55,kind:({spin:'spin',dash:'dash',roll:'dash',slam:'slam',quake:'slam',blast:'slam',inferno:'slam',kick:'slam',volley:'shoot',shuriken:'shoot',barrage:'shoot',pierce:'shoot',hats:'shoot',heal:'buff',regen:'buff',aegis:'buff',shield:'buff',freeze:'buff',smoke:'buff',bolt:'buff',fury:'rage',firewall:'rage',fire:'rage'})[a.id]||'buff'};
+const H=heroStat(),col=fxCol(),dm=dmgNow()*powMult(),R=a.r||5;P.fireDmg=dm;
 switch(a.id){
 case 'spin':fxAt('ring',P.x,P.z,col);G.shake=.35;aoeHit(P.x,P.z,R,dm*2.2,6,col);break;
 case 'dash':{const dx=Math.sin(P.face),dz=Math.cos(P.face),x0=P.x,z0=P.z;for(let s=0;s<6;s++){P.x+=dx*.95;P.z+=dz*.95;pushOut(P,.5)}aoeHit(P.x,P.z,R,dm*1.7,9,col);P.inv=Math.max(P.inv,.35);fxAt('dash',x0,z0,col,{x2:P.x,z2:P.z});fxAt('ring',P.x,P.z,col);break}
@@ -1109,7 +1118,7 @@ if(melee&&!P.swingHit&&P.swingT>dur*.4){P.swingHit=true;const fx=Math.sin(P.face
  for(const z of G.zombies){if(z.dead)continue;const dx=z.x-P.x,dz=z.z-P.z,d=Math.hypot(dx,dz),rr=M.r+ZT[z.type].scale*.5;if(d<rr&&Math.abs((z.y??0)-P.y)<1.7&&(M.dot<0||(dx*fx+dz*fz)/(d||1)>M.dot))sendHit(z,dmgNow(),dx/(d||1)*M.k,dz/(d||1)*M.k,col)}
  for(const e of pvpEnemies()){const dx=e.x-P.x,dz=e.z-P.z,d=Math.hypot(dx,dz);if(d<M.r&&Math.abs((e.y||0)-P.y)<1.7&&(M.dot<0||(dx*fx+dz*fz)/(d||1)>M.dot))hurtPlayer(e.id,dmgNow(),dx/(d||1)*M.k,dz/(d||1)*M.k)}
  burst(P.x+fx*1.6,1.1+(G.mode2d?P.y:0),P.z+fz*1.6,col,H.kind==='hammer'?14:7,5,3)}
-if(P.fireT>0){P.fireT-=dt;P.fireTick-=dt;if(P.fireTick<=0){P.fireTick=.5;for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-P.x,z.z-P.z)<5.5&&Math.abs((z.y??0)-P.y)<1.8)sendHit(z,H.dmg*.7,0,0,P.fireCol);if(G.pvp)for(const e of pvpEnemies())if(Math.hypot(e.x-P.x,e.z-P.z)<5.5&&Math.abs((e.y||0)-P.y)<1.8)hurtPlayer(e.id,H.dmg*.5,0,0)}burst(P.x+Math.cos(G.t*5)*4,.3,P.z+Math.sin(G.t*5)*4,P.fireCol||0xff7a1a,2,1,3)}
+if(P.fireT>0){P.fireT-=dt;P.fireTick-=dt;if(P.fireTick<=0){P.fireTick=.5;const fd=P.fireDmg||H.dmg;for(const z of G.zombies)if(!z.dead&&Math.hypot(z.x-P.x,z.z-P.z)<5.5&&Math.abs((z.y??0)-P.y)<1.8)sendHit(z,fd*.7,0,0,P.fireCol);if(G.pvp)for(const e of pvpEnemies())if(Math.hypot(e.x-P.x,e.z-P.z)<5.5&&Math.abs((e.y||0)-P.y)<1.8)hurtPlayer(e.id,fd*.5,0,0)}burst(P.x+Math.cos(G.t*5)*4,.3,P.z+Math.sin(G.t*5)*4,P.fireCol||0xff7a1a,2,1,3)}
 P.recoil*=Math.pow(.01,dt);
 }
 function updProj(dt){for(let i=PR.length-1;i>=0;i--){const p=PR[i];let rm=false;
@@ -1401,10 +1410,15 @@ $('#mset').onclick=openSettings;
 function buy(price){if(S.coins<price){toast('Non hai abbastanza soldi');return false}S.coins-=price;return true}
 const hexDot=c=>'<span class="sw" style="background:#'+c.toString(16).padStart(6,'0')+'"></span>';
 function openShop(tab='stili',hs){hs=hs||S.hero;
-const tabs=[['speed','🏃 Velocità'],['stili','🎭 Stili'],['powers','⚡ Poteri'],['helm','⛑ Elmi'],['armor','🛡 Armature'],['trail','✨ Scie']];
+const tabs=[['speed','⚡ Potenziamenti'],['stili','🎭 Stili'],['powers','⚡ Poteri'],['helm','⛑ Elmi'],['armor','🛡 Armature'],['trail','✨ Scie']];
 let h='<div class="tabs">'+tabs.map(t=>`<span class="tab ${tab===t[0]?'on':''}" data-a="stab" data-id="${t[0]}">${t[1]}</span>`).join('')+'</div><p>🪙 '+S.coins+'</p>';
 if(tab==='speed'){const lv=spdLv(),max=lv>=SPD_MAX,cost=max?0:spdCost(lv),H0=heroStat(),poor=!max&&S.coins<cost?'poor':'';
-h+=`<div class="it"><b>🏃 Corsa · Velocità</b><span>Livello <b>${lv}/${SPD_MAX}</b> · bonus attuale <b>+${Math.round(lv*SPD_STEP*100)}%</b> · ogni livello <b>+${Math.round(SPD_STEP*100)}%</b></span><span>Velocità in partita: <b>${(H0.spd*spdMult()).toFixed(2)}</b> (base ${H0.spd.toFixed(2)})</span><span>${max?'Potenziamento completato':`Prossimo livello: <b>🪙 ${cost}</b> · ogni acquisto costa <b>circa il 28%</b> in più del precedente`}</span>${max?'<button class="btn sm" disabled>✔ Al massimo</button>':`<button class="btn sm ${poor}" data-a="bspd">Potenzia 🪙${cost}</button>`}</div><p class="small">Le monete arrivano da zombie, ondate completate e <b>livelli raggiunti</b>: ogni nuovo livello regala monete. Il bonus vale per qualsiasi eroe, in solo e online.</p>`}
+const dlv=dmgLv(),dmax=dlv>=DMG_MAX,dcost=dmax?0:dmgCost(dlv),dpoor=!dmax&&S.coins<dcost?'poor':'';
+const plv=powLv(),pmax=plv>=POW_MAX,pcost=pmax?0:powCost(plv),ppoor=!pmax&&S.coins<pcost?'poor':'';
+h+=`<div class="it"><b>🏃 Corsa · Velocità</b><span>Livello <b>${lv}/${SPD_MAX}</b> · bonus attuale <b>+${Math.round(lv*SPD_STEP*100)}%</b> · ogni livello <b>+${Math.round(SPD_STEP*100)}%</b></span><span>Velocità in partita: <b>${(H0.spd*spdMult()).toFixed(2)}</b> (base ${H0.spd.toFixed(2)})</span><span>${max?'Potenziamento completato':`Prossimo livello: <b>🪙 ${cost}</b> · ogni acquisto costa <b>circa il 28%</b> in più del precedente`}</span>${max?'<button class="btn sm" disabled>✔ Al massimo (15)</button>':`<button class="btn sm ${poor}" data-a="bspd">Potenzia 🪙${cost}</button>`}</div>`;
+h+=`<div class="it"><b>💥 Danni · Attacchi</b><span>Livello <b>${dlv}/${DMG_MAX}</b> · bonus attuale <b>+${Math.round(dlv*DMG_STEP*100)}%</b> · ogni livello <b>+${Math.round(DMG_STEP*100)}%</b></span><span>Danno base in partita: <b>${(H0.dmg*dmgMult()).toFixed(1)}</b> (base ${H0.dmg.toFixed(1)})</span><span>${dmax?'Potenziamento completato':`Prossimo livello: <b>🪙 ${dcost}</b> · vale per attacchi, abilità e proiettili`}</span>${dmax?'<button class="btn sm" disabled>✔ Al massimo (15)</button>':`<button class="btn sm ${dpoor}" data-a="bdmg">Potenzia 🪙${dcost}</button>`}</div>`;
+h+=`<div class="it"><b>⚡ Poteri · Abilità</b><span>Livello <b>${plv}/${POW_MAX}</b> · danno abilità <b>+${Math.round(plv*POW_STEP*100)}%</b> · ricarica <b>-${Math.round(plv*POW_CD_STEP*100)}%</b></span><span>Ogni livello: <b>+${Math.round(POW_STEP*100)}% danno</b> e <b>-${Math.round(POW_CD_STEP*100)}% ricarica</b></span><span>${pmax?'Potenziamento completato':`Prossimo livello: <b>🪙 ${pcost}</b> · vale per abilità degli eroi e poteri comprati`}</span>${pmax?'<button class="btn sm" disabled>✔ Al massimo (15)</button>':`<button class="btn sm ${ppoor}" data-a="bpowup">Potenzia 🪙${pcost}</button>`}</div>`;
+h+='<p class="small">Tutti i potenziamenti arrivano al <b>livello massimo 15</b>. Le monete arrivano da zombie, ondate completate e <b>livelli raggiunti</b>: ogni nuovo livello regala monete. I bonus valgono per qualsiasi eroe, in solo e online.</p>'}
 else if(tab==='stili'){
 h+='<div class="tabs" style="max-height:130px;overflow:auto">'+Object.keys(HEROES).map(id=>`<span class="tab ${hs===id?'on':''}" data-a="sskinhero" data-id="${id}">${S.heroes.includes(id)?'':'🔒 '}${HEROES[id].n}</span>`).join('')+'</div>';
 const HH=HEROES[hs],skins=SKINS[hs],eqId=(S.eqSkin[hs]||skins[0].id),accN=['','Berretto','Bandana','Corona','Visore','Corna'];
@@ -1421,7 +1435,9 @@ acts.sskinuse=id=>{S.eqSkin[hs]=id;persist();sfx('coin');if(hs===S.hero)makeMenu
 acts.sskinbuy=id=>{const sk=SKINS[hs].find(x=>x.id===id);if(!sk)return;if(buy(sk.price)){S.skins.push(id);S.eqSkin[hs]=id;persist(true);sfx('spend');if(hs===S.hero)makeMenuHero();openShop('stili',hs)}};
 acts.bpow=id=>{const p=POWERS.find(x=>x.id===id);if(buy(p.price)){S.powers.push(id);persist(true);sfx('spend');barItems=abilityBar();openShop('powers',hs)}};
 acts.bitem=id=>{if(buy(ITEMS[id].price)){S.items.push(id);persist(true);sfx('spend');openShop(['helm','armor','trail'][{h:0,a:1,t:2}[id[0]]],hs)}}}
-acts.bspd=()=>{const lv=spdLv();if(lv>=SPD_MAX){toast('Velocità già al massimo');return}if(buy(spdCost(lv))){S.spd=lv+1;persist(true);sfx('spend');toast('🏃 Velocità +'+Math.round(SPD_STEP*100)+'% · livello '+(lv+1)+'/'+SPD_MAX);openShop('speed')}};
+acts.bspd=()=>{const lv=spdLv();if(lv>=SPD_MAX){toast('Velocità già al massimo (15)');return}if(buy(spdCost(lv))){S.spd=lv+1;persist(true);sfx('spend');toast('🏃 Velocità +'+Math.round(SPD_STEP*100)+'% · livello '+(lv+1)+'/'+SPD_MAX);openShop('speed')}};
+acts.bdmg=()=>{const lv=dmgLv();if(lv>=DMG_MAX){toast('Danni già al massimo (15)');return}if(buy(dmgCost(lv))){S.dmg=lv+1;persist(true);sfx('spend');toast('💥 Danni +'+Math.round(DMG_STEP*100)+'% · livello '+(lv+1)+'/'+DMG_MAX);openShop('speed')}};
+acts.bpowup=()=>{const lv=powLv();if(lv>=POW_MAX){toast('Poteri già al massimo (15)');return}if(buy(powCost(lv))){S.pow=lv+1;persist(true);sfx('spend');toast('⚡ Poteri +'+Math.round(POW_STEP*100)+'% danno · livello '+(lv+1)+'/'+POW_MAX);openShop('speed')}};
 $('#mshop').onclick=()=>{initAudio();openShop('speed')};
 /* ---- Negozio Avanzamenti (bustine generiche) ---- */
 const candyTotal=()=>Object.values(S.candy||{}).reduce((a,b)=>a+(+b||0),0);
