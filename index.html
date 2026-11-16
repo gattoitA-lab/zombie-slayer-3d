@@ -414,9 +414,9 @@ async ensure(){if(this.ready)return true;if(this.failed)return false;if(this.rea
 onMsg(topic,payload){const s=payload?payload.toString():'';if(!s&&topic.startsWith(MQ_LOB)){delete this.lobbies[topic.slice(MQ_LOB.length)];return}
  if(topic.startsWith(MQ_LOB)){try{const l=JSON.parse(s);if(l&&l.code)this.lobbies[l.code]=l}catch{}return}
  if(topic.startsWith(MQ_ROOM)&&this.room){try{const m=JSON.parse(s);if(m&&m.id!==this.room.id)this.room.cb(m.id,m.doc)}catch{}}},
-async listLobbies(){if(!(await this.ensure()))return LocalBE.listLobbies();await new Promise(r=>setTimeout(r,400));const n=Date.now();return Object.values(this.lobbies).filter(l=>l&&n-(l.ts||0)<15000)},
+async listLobbies(){if(!(await this.ensure()))return LocalBE.listLobbies();await new Promise(r=>setTimeout(r,400));const n=Date.now();return Object.values(this.lobbies).filter(l=>l&&n-(l.ts||0)<45000)},
 async getLobby(c){c=(c||'').toUpperCase().trim();if(!c)return null;if(!(await this.ensure()))return LocalBE.getLobby(c);
- for(let i=0;i<12;i++){const l=this.lobbies[c];if(l&&Date.now()-(l.ts||0)<15000)return l;await new Promise(r=>setTimeout(r,200))}return null},
+ for(let i=0;i<12;i++){const l=this.lobbies[c];if(l&&Date.now()-(l.ts||0)<45000)return l;await new Promise(r=>setTimeout(r,200))}return null},
 async putLobby(l){const ll={...l,ts:Date.now()};this.lobbies[ll.code]=ll;if(!(await this.ensure()))return LocalBE.putLobby(ll);try{this.cli.publish(MQ_LOB+ll.code,JSON.stringify(ll),{qos:0,retain:true})}catch{}},
 async delLobby(c){delete this.lobbies[c];if(!(await this.ensure()))return LocalBE.delLobby(c);try{this.cli.publish(MQ_LOB+c,'',{qos:0,retain:true})}catch{}},
 peers(code,id,cb){const self=this,h={code,id,cb,last:null,closed:false,fallback:null},topic=MQ_ROOM+code;this.room=h;
