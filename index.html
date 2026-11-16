@@ -126,6 +126,8 @@ input,select{background:#0b0f0a;border:2px solid #556;border-radius:10px;color:#
 .daily-card.current{border:2px solid #ffd24a;box-shadow:0 0 18px #ffd24a66;background:#1f1708;transform:translateY(-1px)}
 .daily-card.locked{opacity:.55}.daily-card .stamp{position:absolute;right:6px;top:5px;font-size:12px}
 .daily-claim{background:linear-gradient(#ffd24a,#e8801a)!important;color:#2a1600!important;border-color:#fff0b0!important;text-shadow:none!important;font-weight:900!important}
+.bindbtn{min-width:150px;text-align:center}.bindbtn.listening{background:linear-gradient(#4ad8ff,#1b6fa8)!important;border-color:#d7f6ff!important;animation:bindpulse .9s ease-in-out infinite}
+@keyframes bindpulse{0%,100%{box-shadow:0 4px 0 #16346a,0 0 0 #4ad8ff00}50%{box-shadow:0 4px 0 #16346a,0 0 20px #4ad8ff}}
 .sw{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #fff;vertical-align:middle;margin-right:6px}
 .prog{height:8px;background:#000a;border-radius:6px;overflow:hidden}.prog i{display:block;height:100%;background:#7aff9a}
 .lob{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0b0f0a;border:1px solid #ffd58a55;border-radius:10px;padding:8px 10px;margin:5px 0}
@@ -1411,9 +1413,10 @@ let drag=false,lastX=0;
 const scr=['loading','auth','menu','hud'];
 function showScr(n){for(const s of scr)$('#'+s).classList.toggle('hidden',s!==n)}
 const isUIOpen=()=>!$('#modal').classList.contains('hidden')||!$('#pause').classList.contains('hidden')||!$('#over').classList.contains('hidden');
-let modalMount=null,roomTimer=null;
+let modalMount=null,roomTimer=null,bindKeyAction=null,bindGpAction=null;
+function clearBinding(){bindKeyAction=null;bindGpAction=null}
 function openModal(title,html,mount){$('#mtitle').textContent=title;$('#mbody').innerHTML=html;$('#modal').classList.remove('hidden');modalMount=mount||null;clearLock()}
-function closeModal(){$('#modal').classList.add('hidden');clearInterval(roomTimer);modalMount=null}
+function closeModal(){$('#modal').classList.add('hidden');clearInterval(roomTimer);modalMount=null;clearBinding()}
 $('#mclose').onclick=()=>{closeModal()};
 const acts={};
 $('#mbody').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&acts[b.dataset.a])acts[b.dataset.a](b.dataset.id,b)});
@@ -1422,19 +1425,30 @@ function updTop(){const l=lvlInfo(S.xp);$('#tuser').textContent='👤 '+U.name;$
 setInterval(updTop,500);
 
 /* ---- Impostazioni ---- */
-const keyOpts=sel=>[['KeyF','F'],['KeyE','E'],['KeyQ','Q'],['KeyR','R'],['KeyG','G'],['KeyV','V'],['KeyC','C'],['KeyX','X'],['KeyZ','Z'],['Space','Spazio'],['KeyJ','J'],['ShiftLeft','Shift']].map(([v,n])=>`<option value="${v}" ${sel===v?'selected':''}>${n}</option>`).join('');
-const gpOpts=sel=>[[7,'RT / R2 / ZR'],[6,'LT / L2 / ZL'],[5,'RB / R1'],[4,'LB / L1'],[0,'A / ✕ / B (basso)'],[1,'B / ◯ / A (destra)'],[2,'X / □ / Y (sinistra)'],[3,'Y / △ / X (alto)']].map(([v,n])=>`<option value="${v}" ${+sel===v?'selected':''}>${n}</option>`).join('');
+const actionName={atk:'Attacco',jump:'Salto',rev:'Rianima'};
+const keyLabel=code=>{const n={Space:'Spazio',ShiftLeft:'Shift sinistro',ShiftRight:'Shift destro',ControlLeft:'Ctrl sinistro',ControlRight:'Ctrl destro',AltLeft:'Alt sinistro',AltRight:'Alt destro',Escape:'Esc',Tab:'Tab',Enter:'Invio',Backspace:'Backspace',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',Backslash:'\\'};if(n[code])return n[code];if(/^Key[A-Z]$/.test(code))return code.slice(3);if(/^Digit[0-9]$/.test(code))return code.slice(5);if(/^Numpad[0-9]$/.test(code))return 'Num '+code.slice(6);return code||'—'};
+const gpBtnLabels={
+ gen:['A / ✕ / B','B / ◯ / A','X / □ / Y','Y / △ / X','LB / L1','RB / R1','LT / L2','RT / R2','View / Share','Menu / Options','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Guida','Extra'],
+ xbox:['A','B','X','Y','LB','RB','LT','RT','View','Menu','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Guida','Extra'],
+ ps:['✕','◯','□','△','L1','R1','L2','R2','Share','Options','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','PS','Touchpad'],
+ nin:['B','A','Y','X','L','R','ZL','ZR','−','+','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Home','Extra'],
+ wii:['A','B','1','2','−','+','ZL','ZR','C','Z','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Home','Extra']
+};
+const gpBtnName=i=>{const a=gpBtnLabels[GP?.fam]||gpBtnLabels.gen;return a[i]||('Pulsante '+(i+1))};
 function applyMob(){const m=S.set.mob||{};document.body.classList.toggle('mob-left',m.side==='left');document.documentElement.style.setProperty('--mobscale',String(m.size||1))}
 function openSettings(){
  const K=S.set.keys||{},GPC=S.set.gp||{},M=S.set.mob||{};
  openModal('⚙️ Impostazioni',`<div class="settings"><h3>Grafica e audio</h3><div><label>Grafica: <b id="gl">${GFX[S.set.gfx].n}</b></label><input type="range" min="0" max="6" step="1" value="${S.set.gfx}" data-s="gfx"></div><div><label>Volume generale</label><input type="range" min="0" max="1" step=".05" value="${S.set.vol}" data-s="vol"></div><div><label>Effetti sonori</label><input type="range" min="0" max="1" step=".05" value="${S.set.sfx}" data-s="sfx"></div><div><label>Musica</label><input type="range" min="0" max="1" step=".05" value="${S.set.music}" data-s="music"></div>
- <h3>Tastiera</h3><div><label>Attacco</label><select data-s="keyatk">${keyOpts(K.atk)}</select></div><div><label>Salto</label><select data-s="keyjump">${keyOpts(K.jump)}</select></div><div><label>Rianima</label><select data-s="keyrev">${keyOpts(K.rev)}</select></div>
- <h3>Controller</h3><div><label>Attacco</label><select data-s="gpatk">${gpOpts(GPC.atk)}</select></div><div><label>Salto</label><select data-s="gpjump">${gpOpts(GPC.jump)}</select></div><div><label>Rianima</label><select data-s="gprev">${gpOpts(GPC.rev)}</select></div>
- <h3>Mobile</h3><div><label>Mano / layout</label><select data-s="mobside"><option value="right" ${M.side!=='left'?'selected':''}>Joystick a sinistra, tasti a destra</option><option value="left" ${M.side==='left'?'selected':''}>Joystick a destra, tasti a sinistra</option></select></div><div><label>Dimensione pulsanti: <b id="mbs">${Math.round((M.size||1)*100)}%</b></label><input type="range" min=".7" max="1.4" step=".05" value="${M.size||1}" data-s="mobsize"></div><p class="small" style="grid-column:1/-1">Le frecce/WASD e Invio/Spazio restano attivi nei menu. Le abilità restano sui tasti 1-4 e sui pulsanti del controller.</p></div>`);
+ <h3>Tastiera</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindkey" data-id="atk">${keyLabel(K.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindkey" data-id="jump">${keyLabel(K.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindkey" data-id="rev">${keyLabel(K.rev)}</button></div>
+ <h3>Controller</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindgp" data-id="atk">${gpBtnName(GPC.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindgp" data-id="jump">${gpBtnName(GPC.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindgp" data-id="rev">${gpBtnName(GPC.rev)}</button></div>
+ <h3>Mobile</h3><div><label>Mano / layout</label><select data-s="mobside"><option value="right" ${M.side!=='left'?'selected':''}>Joystick a sinistra, tasti a destra</option><option value="left" ${M.side==='left'?'selected':''}>Joystick a destra, tasti a sinistra</option></select></div><div><label>Dimensione pulsanti: <b id="mbs">${Math.round((M.size||1)*100)}%</b></label><input type="range" min=".7" max="1.4" step=".05" value="${M.size||1}" data-s="mobsize"></div><p class="small" style="grid-column:1/-1"><b>Clicca un comando e premi il tasto o il pulsante che vuoi assegnare</b> (qualsiasi pulsante del controller). Esc annulla la modifica. Le frecce/WASD e Invio/Spazio restano attivi nei menu. Le abilità restano sui tasti 1-4 e sui pulsanti del controller.</p></div>`);
 }
 acts.gfx=v=>{S.set.gfx=+v;$('#gl').textContent=GFX[S.set.gfx].n;clearTimeout(acts._t);acts._t=setTimeout(()=>{applyGfx();persist()},250)};for(const k of['vol','sfx','music'])acts[k]=v=>{S.set[k]=+v;applyVol();persist()};
-acts.keyatk=v=>{S.set.keys.atk=v;persist(true)};acts.keyjump=v=>{S.set.keys.jump=v;persist(true)};acts.keyrev=v=>{S.set.keys.rev=v;persist(true)};
-acts.gpatk=v=>{S.set.gp.atk=+v;persist(true)};acts.gpjump=v=>{S.set.gp.jump=+v;persist(true)};acts.gprev=v=>{S.set.gp.rev=+v;persist(true)};
+function markBind(which,action,text){const b=document.querySelector(`[data-a="${which}"][data-id="${action}"]`);if(b){b.textContent=text;b.classList.add('listening')}}
+acts.bindkey=id=>{clearBinding();openSettings();bindKeyAction=id;markBind('bindkey',id,'Premi un tasto…');toast('Premi il tasto da assegnare · Esc annulla')};
+acts.bindgp=id=>{clearBinding();if(GP.simple&&!S.set.gp?.custom)S.set.gp={atk:0,jump:1,rev:2};openSettings();bindGpAction=id;markBind('bindgp',id,'Premi un pulsante…');toast(GP.on?'Premi qualsiasi pulsante del controller':'Collega un controller e premi un pulsante')};
+function bindGpButton(i){if(bindGpAction==null)return;const action=bindGpAction;bindGpAction=null;const other=Object.keys(actionName).find(k=>k!==action&&Number(S.set.gp[k])===i);if(other){toast(gpBtnName(i)+' è già usato per '+actionName[other]);openSettings();return}S.set.gp[action]=i;S.set.gp.custom=true;persist(true);sfx('coin');toast('🎮 '+actionName[action]+' → '+gpBtnName(i));openSettings()}
+addEventListener('keydown',e=>{if(!bindKeyAction)return;e.preventDefault();e.stopImmediatePropagation();const action=bindKeyAction;bindKeyAction=null;if(e.code==='Escape'){openSettings();toast('Modifica annullata');return}const other=Object.keys(actionName).find(k=>k!==action&&S.set.keys[k]===e.code);if(other){toast(keyLabel(e.code)+' è già usato per '+actionName[other]);openSettings();return}S.set.keys[action]=e.code;persist(true);sfx('coin');toast('⌨️ '+actionName[action]+' → '+keyLabel(e.code));openSettings()},true);
 acts.mobside=v=>{S.set.mob.side=v;applyMob();persist(true)};acts.mobsize=v=>{S.set.mob.size=+v;const b=$('#mbs');if(b)b.textContent=Math.round(S.set.mob.size*100)+'%';applyMob();persist(true)}
 $('#mset').onclick=openSettings;
 
@@ -1698,7 +1712,7 @@ kb()});
 addEventListener('keyup',e=>{const k=e.code;KEYS[k]=false;if(k===keyb('jump'))I.jump=false;if(k===keyb('atk'))I.atk=false;kb()});
 function kb(){I.kx=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0);I.kz=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0)}
 /* ---- CONTROLLER (Gamepad API: Xbox, PlayStation, Switch, Wii e compatibili) ---- */
-const GP={on:false,index:-1,id:'',fam:'gen',prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null,s4:false,s5:false,seq:[]};
+const GP={on:false,index:-1,id:'',fam:'gen',simple:false,prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null,s4:false,s5:false,seq:[]};
 function gpRumble(strong,weak,dur){
  let p=null;try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
  const act=p&&(p.vibrationActuator||(p.hapticActuators&&p.hapticActuators[0]));if(!act)return;
@@ -1743,11 +1757,10 @@ function gpShakePoll(p,btn){
 function gpFam(id){id=(id||'').toLowerCase();if(/wii remote|wiimote/.test(id))return'wii';if(/xbox|xinput|microsoft/.test(id))return'xbox';if(/playstation|dualshock|dualsense|sony|wireless controller|054c/.test(id))return'ps';if(/nintendo|switch|joy-con|pro controller|wii|057e/.test(id))return'nin';return'gen'}
 function gpName(){return (GP.id||'Controller').split(' (')[0].slice(0,30)}
 function gpHint(){
- if(GP.fam==='wii')return '🎮 Wii · A attacca · B salta · 1/2 abilità · D-pad muovi · + pausa';
  const N={xbox:'Xbox',ps:'PlayStation',nin:'Nintendo',gen:'Controller'}[GP.fam]||'Controller';
- const B=GP.fam==='ps'?['✕','◯','□','△','L1','R1','L2','R2']:GP.fam==='nin'?['B','A','Y','X','L','R','ZL','ZR']:['A','B','X','Y','LB','RB','LT','RT'];
- const S=GP.fam==='ps'?'Options':GP.fam==='nin'?'+':'Start',abil=GP.fam==='ps'?'L1/R1':GP.fam==='nin'?'L/R':'LB/RB';
- return '🎮 '+N+' · '+(B[gpb('jump')]||'?')+' salta · '+(B[gpb('rev')]||'?')+' rianima · '+(B[gpb('atk')]||'?')+' attacca · '+abil+' abilità · '+S+' pausa'
+ if(GP.fam==='wii'&&!S.set.gp?.custom)return '🎮 Wii · A attacca · B salta · 1/2 abilità · D-pad muovi · + pausa';
+ const start=GP.fam==='ps'?'Options':GP.fam==='nin'?'+':'Start',abil=GP.fam==='ps'?'L1/R1':GP.fam==='nin'?'L/R':'LB/RB';
+ return '🎮 '+N+' · '+gpBtnName(gpb('jump'))+' salta · '+gpBtnName(gpb('rev'))+' rianima · '+gpBtnName(gpb('atk'))+' attacca · '+abil+' abilità · '+start+' pausa'
 }
 function gpSetHint(){const m=$('#menuhint');if(m)m.textContent=GP.on?gpHint():'Trascina per ruotare il personaggio';updateLockHint()}
 function gpVisible(el){return !!el&&el.isConnected&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden'}
@@ -1801,10 +1814,11 @@ function gpUI(p,btn,edge){
 function updGamepad(dt){
  if(!navigator.getGamepads)return;let p=null;
  try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
- if(!p){if(GP.on){GP.on=false;GP.index=-1;GP.id='';GP.prev=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()}return}
- if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}
+ if(!p){if(GP.on){GP.on=false;GP.simple=false;GP.index=-1;GP.id='';GP.prev=[];bindGpAction=null;I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()}return}
+ if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.simple=GP.fam==='wii'||((p.buttons||[]).length<=8&&(p.axes||[]).length<4);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}
  const btn=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.5));
  const edge=i=>btn(i)&&!GP.prev[i];
+ if(bindGpAction!=null){let hit=-1;for(let i=0;i<(p.buttons||[]).length;i++)if(btn(i)&&!GP.prev[i]){hit=i;break}GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));if(hit>=0)bindGpButton(hit);return}
  if(!GP.audio&&(p.buttons||[]).some(b=>b&&(b.pressed||b.value>.5))){GP.audio=true;try{initAudio()}catch(e){}}
  gpShakePoll(p,btn);
  const ui=G.mode!=='play'||!$('#modal').classList.contains('hidden')||!$('#pause').classList.contains('hidden')||!$('#over').classList.contains('hidden');
@@ -1814,15 +1828,15 @@ function updGamepad(dt){
  if(btn(14))lx=-1;if(btn(15))lx=1;if(btn(12))ly=-1;if(btn(13))ly=1;
  I.gkx=lx;I.gkz=-ly;
  if(rx||ry){cam.yaw-=rx*2.3*dt;cam.pitch=clamp(cam.pitch+ry*1.7*dt,-.6,1.25)}
- const simple=GP.fam==='wii'||((p.buttons||[]).length<=8&&ax.length<4);
+ const simple=GP.simple&&!S.set.gp?.custom;
  if(simple){I.gatk=btn(0);I.gjump=btn(1);I.grev=btn(2);if(edge(3))useSlot(0);if(edge(4))useSlot(1)}
  else{I.gatk=btn(gpb('atk'));I.gjump=btn(gpb('jump'));I.grev=btn(gpb('rev'));if(edge(2))useSlot(0);if(edge(3))useSlot(1);if(edge(4))useSlot(2);if(edge(5))useSlot(3)}
  if(edge(8)){const bc=$('#bcandy');if(bc)bc.click()}
  if(edge(9))gpPause();
  GP.prev=p.buttons.map(b=>!!(b&&(b.pressed||b.value>.5)));
 }
-addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}});
-addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
+addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.simple=GP.fam==='wii'||((e.gamepad.buttons||[]).length<=8&&(e.gamepad.axes||[]).length<4);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}});
+addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.simple=false;GP.index=-1;GP.id='';GP.prev=[];bindGpAction=null;GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
 document.addEventListener('pointerdown',()=>{if(GP.focusEl){GP.focusEl.classList.remove('gp-focus');GP.focusEl=null}},true);
 hapticFn=haptic;
 // zoom unico (rotella + pinch), con scatto in prima persona sotto 1.4
