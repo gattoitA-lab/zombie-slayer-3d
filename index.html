@@ -392,7 +392,7 @@ const ZIDS=Object.keys(ZT);
 
 /* ================= SALVATAGGIO / BACKEND ================= */
 const isM=isTouch;
-const defSave=()=>({coins:150,xp:0,spd:0,dmg:0,pow:0,daily:{day:0,last:''},candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},gp:{atk:7,jump:0,rev:1},mob:{side:'right',size:1}}});
+const defSave=()=>({coins:150,xp:0,spd:0,dmg:0,pow:0,daily:{day:0,last:''},candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},move:{up:'KeyW',down:'KeyS',left:'KeyA',right:'KeyD'},gp:{atk:7,jump:0,rev:1,move:'left'},mob:{side:'right',size:1}}});
 const skinList=hid=>SKINS[hid]||SKINS.sword;
 const skinOf=(hid,id)=>skinList(hid).find(s=>s.id===id)||skinList(hid)[0];
 const ownsSkin=id=>{for(const hs in SKINS){const s=SKINS[hs].find(x=>x.id===id);if(s)return s.price===0||(S.skins||[]).includes(id)}return false};
@@ -1426,6 +1426,7 @@ setInterval(updTop,500);
 
 /* ---- Impostazioni ---- */
 const actionName={atk:'Attacco',jump:'Salto',rev:'Rianima'};
+const moveName={up:'Avanti',down:'Indietro',left:'Sinistra',right:'Destra'};
 const keyLabel=code=>{const n={Space:'Spazio',ShiftLeft:'Shift sinistro',ShiftRight:'Shift destro',ControlLeft:'Ctrl sinistro',ControlRight:'Ctrl destro',AltLeft:'Alt sinistro',AltRight:'Alt destro',Escape:'Esc',Tab:'Tab',Enter:'Invio',Backspace:'Backspace',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',Backslash:'\\'};if(n[code])return n[code];if(/^Key[A-Z]$/.test(code))return code.slice(3);if(/^Digit[0-9]$/.test(code))return code.slice(5);if(/^Numpad[0-9]$/.test(code))return 'Num '+code.slice(6);return code||'—'};
 const gpBtnLabels={
  gen:['A / ✕ / B','B / ◯ / A','X / □ / Y','Y / △ / X','LB / L1','RB / R1','LT / L2','RT / R2','View / Share','Menu / Options','L3','R3','D-pad ↑','D-pad ↓','D-pad ←','D-pad →','Guida','Extra'],
@@ -1437,19 +1438,28 @@ const gpBtnLabels={
 const gpBtnName=i=>{const a=gpBtnLabels[GP?.fam]||gpBtnLabels.gen;return a[i]||('Pulsante '+(i+1))};
 function applyMob(){const m=S.set.mob||{};document.body.classList.toggle('mob-left',m.side==='left');document.documentElement.style.setProperty('--mobscale',String(m.size||1))}
 function openSettings(){
- const K=S.set.keys||{},GPC=S.set.gp||{},M=S.set.mob||{};
+ const K=S.set.keys||{},MV=S.set.move||defSave().set.move,GPC=S.set.gp||{},M=S.set.mob||{};
  openModal('⚙️ Impostazioni',`<div class="settings"><h3>Grafica e audio</h3><div><label>Grafica: <b id="gl">${GFX[S.set.gfx].n}</b></label><input type="range" min="0" max="6" step="1" value="${S.set.gfx}" data-s="gfx"></div><div><label>Volume generale</label><input type="range" min="0" max="1" step=".05" value="${S.set.vol}" data-s="vol"></div><div><label>Effetti sonori</label><input type="range" min="0" max="1" step=".05" value="${S.set.sfx}" data-s="sfx"></div><div><label>Musica</label><input type="range" min="0" max="1" step=".05" value="${S.set.music}" data-s="music"></div>
- <h3>Tastiera</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindkey" data-id="atk">${keyLabel(K.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindkey" data-id="jump">${keyLabel(K.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindkey" data-id="rev">${keyLabel(K.rev)}</button></div>
- <h3>Controller</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindgp" data-id="atk">${gpBtnName(GPC.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindgp" data-id="jump">${gpBtnName(GPC.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindgp" data-id="rev">${gpBtnName(GPC.rev)}</button></div>
- <h3>Mobile</h3><div><label>Mano / layout</label><select data-s="mobside"><option value="right" ${M.side!=='left'?'selected':''}>Joystick a sinistra, tasti a destra</option><option value="left" ${M.side==='left'?'selected':''}>Joystick a destra, tasti a sinistra</option></select></div><div><label>Dimensione pulsanti: <b id="mbs">${Math.round((M.size||1)*100)}%</b></label><input type="range" min=".7" max="1.4" step=".05" value="${M.size||1}" data-s="mobsize"></div><p class="small" style="grid-column:1/-1"><b>Clicca un comando e premi il tasto o il pulsante che vuoi assegnare</b> (qualsiasi pulsante del controller). Esc annulla la modifica. Le frecce/WASD e Invio/Spazio restano attivi nei menu. Le abilità restano sui tasti 1-4 e sui pulsanti del controller.</p></div>`);
+ <h3>Tastiera · Azioni</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindkey" data-id="atk">${keyLabel(K.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindkey" data-id="jump">${keyLabel(K.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindkey" data-id="rev">${keyLabel(K.rev)}</button></div>
+ <h3>Tastiera · Movimento</h3><div><label>Avanti</label><button class="btn sm bindbtn" data-a="bindmove" data-id="up">${keyLabel(MV.up)}</button></div><div><label>Indietro</label><button class="btn sm bindbtn" data-a="bindmove" data-id="down">${keyLabel(MV.down)}</button></div><div><label>Sinistra</label><button class="btn sm bindbtn" data-a="bindmove" data-id="left">${keyLabel(MV.left)}</button></div><div><label>Destra</label><button class="btn sm bindbtn" data-a="bindmove" data-id="right">${keyLabel(MV.right)}</button></div>
+ <h3>Controller · Azioni</h3><div><label>Attacco</label><button class="btn sm bindbtn" data-a="bindgp" data-id="atk">${gpBtnName(GPC.atk)}</button></div><div><label>Salto</label><button class="btn sm bindbtn" data-a="bindgp" data-id="jump">${gpBtnName(GPC.jump)}</button></div><div><label>Rianima</label><button class="btn sm bindbtn" data-a="bindgp" data-id="rev">${gpBtnName(GPC.rev)}</button></div>
+ <div style="grid-column:1/-1"><label>Controller · Muoviti con</label><div class="row">${[['left','Stick sinistro'],['right','Stick destro'],['dpad','D-pad']].map(([id,n])=>`<button class="btn sm ${(GPC.move||'left')===id?'alt':''}" data-a="gpmove" data-id="${id}">${(GPC.move||'left')===id?'✔ ':''}${n}</button>`).join('')}</div></div>
+ <h3>Mobile</h3><div><label>Mano / layout</label><select data-s="mobside"><option value="right" ${M.side!=='left'?'selected':''}>Joystick a sinistra, tasti a destra</option><option value="left" ${M.side==='left'?'selected':''}>Joystick a destra, tasti a sinistra</option></select></div><div><label>Dimensione pulsanti: <b id="mbs">${Math.round((M.size||1)*100)}%</b></label><input type="range" min=".7" max="1.4" step=".05" value="${M.size||1}" data-s="mobsize"></div> <p class="small" style="grid-column:1/-1"><b>Clicca un comando e premi il tasto o il pulsante che vuoi assegnare</b> (qualsiasi pulsante del controller). Per il movimento puoi scegliere anche stick destro o D-pad. Esc annulla la modifica. Le frecce restano sempre attive per il movimento e i menu; le abilità restano sui tasti 1-4 e sui pulsanti del controller.</p></div>`);
 }
 acts.gfx=v=>{S.set.gfx=+v;$('#gl').textContent=GFX[S.set.gfx].n;clearTimeout(acts._t);acts._t=setTimeout(()=>{applyGfx();persist()},250)};for(const k of['vol','sfx','music'])acts[k]=v=>{S.set[k]=+v;applyVol();persist()};
 function markBind(which,action,text){const b=document.querySelector(`[data-a="${which}"][data-id="${action}"]`);if(b){b.textContent=text;b.classList.add('listening')}}
-acts.bindkey=id=>{clearBinding();openSettings();bindKeyAction=id;markBind('bindkey',id,'Premi un tasto…');toast('Premi il tasto da assegnare · Esc annulla')};
-acts.bindgp=id=>{clearBinding();if(GP.simple&&!S.set.gp?.custom)S.set.gp={atk:0,jump:1,rev:2};openSettings();bindGpAction=id;markBind('bindgp',id,'Premi un pulsante…');toast(GP.on?'Premi qualsiasi pulsante del controller':'Collega un controller e premi un pulsante')};
+acts.bindkey=id=>{clearBinding();openSettings();bindKeyAction={kind:'action',id};markBind('bindkey',id,'Premi un tasto…');toast('Premi il tasto da assegnare · Esc annulla')};
+acts.bindmove=id=>{clearBinding();openSettings();bindKeyAction={kind:'move',id};markBind('bindmove',id,'Premi un tasto…');toast('Premi il tasto per il movimento · Esc annulla')};
+acts.bindgp=id=>{clearBinding();if(GP.simple&&!S.set.gp?.custom)S.set.gp={atk:0,jump:1,rev:2,move:S.set.gp?.move||'left'};openSettings();bindGpAction=id;markBind('bindgp',id,'Premi un pulsante…');toast(GP.on?'Premi qualsiasi pulsante del controller':'Collega un controller e premi un pulsante')};
 function bindGpButton(i){if(bindGpAction==null)return;const action=bindGpAction;bindGpAction=null;const other=Object.keys(actionName).find(k=>k!==action&&Number(S.set.gp[k])===i);if(other){toast(gpBtnName(i)+' è già usato per '+actionName[other]);openSettings();return}S.set.gp[action]=i;S.set.gp.custom=true;persist(true);sfx('coin');toast('🎮 '+actionName[action]+' → '+gpBtnName(i));openSettings()}
-addEventListener('keydown',e=>{if(!bindKeyAction)return;e.preventDefault();e.stopImmediatePropagation();const action=bindKeyAction;bindKeyAction=null;if(e.code==='Escape'){openSettings();toast('Modifica annullata');return}const other=Object.keys(actionName).find(k=>k!==action&&S.set.keys[k]===e.code);if(other){toast(keyLabel(e.code)+' è già usato per '+actionName[other]);openSettings();return}S.set.keys[action]=e.code;persist(true);sfx('coin');toast('⌨️ '+actionName[action]+' → '+keyLabel(e.code));openSettings()},true);
-acts.mobside=v=>{S.set.mob.side=v;applyMob();persist(true)};acts.mobsize=v=>{S.set.mob.size=+v;const b=$('#mbs');if(b)b.textContent=Math.round(S.set.mob.size*100)+'%';applyMob();persist(true)}
+function keyOwner(code,kind,id){
+ for(const k in actionName)if(!(kind==='action'&&k===id)&&S.set.keys?.[k]===code)return actionName[k];
+ for(const k in moveName)if(!(kind==='move'&&k===id)&&S.set.move?.[k]===code)return moveName[k];
+ return ''
+}
+addEventListener('keydown',e=>{if(!bindKeyAction)return;e.preventDefault();e.stopImmediatePropagation();const target=bindKeyAction;bindKeyAction=null;if(e.code==='Escape'){openSettings();toast('Modifica annullata');return}const name=target.kind==='move'?moveName[target.id]:actionName[target.id],other=keyOwner(e.code,target.kind,target.id);if(other){toast(keyLabel(e.code)+' è già usato per '+other);openSettings();return}const store=target.kind==='move'?S.set.move:S.set.keys;store[target.id]=e.code;persist(true);sfx('coin');toast('⌨️ '+name+' → '+keyLabel(e.code));openSettings()},true);
+ acts.mobside=v=>{S.set.mob.side=v;applyMob();persist(true)};acts.mobsize=v=>{S.set.mob.size=+v;const b=$('#mbs');if(b)b.textContent=Math.round(S.set.mob.size*100)+'%';applyMob();persist(true)}
+acts.gpmove=id=>{S.set.gp.move=id;persist(true);sfx('coin');toast('🎮 Movimento controller: '+(id==='right'?'stick destro':id==='dpad'?'D-pad':'stick sinistro'));openSettings()};
 $('#mset').onclick=openSettings;
 
 /* ---- Negozio ---- */
@@ -1710,7 +1720,7 @@ if(k===keyb('jump')){I.jump=true;e.preventDefault()}if(k>='Digit1'&&k<='Digit6')
 if((k==='ShiftLeft'||k==='ShiftRight')&&!e.repeat){setShiftLock(!shiftLock);e.preventDefault()}
 kb()});
 addEventListener('keyup',e=>{const k=e.code;KEYS[k]=false;if(k===keyb('jump'))I.jump=false;if(k===keyb('atk'))I.atk=false;kb()});
-function kb(){I.kx=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0);I.kz=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0)}
+function kb(){const M=S.set.move||defSave().set.move;I.kx=(KEYS[M.right]||KEYS.ArrowRight?1:0)-(KEYS[M.left]||KEYS.ArrowLeft?1:0);I.kz=(KEYS[M.up]||KEYS.ArrowUp?1:0)-(KEYS[M.down]||KEYS.ArrowDown?1:0)}
 /* ---- CONTROLLER (Gamepad API: Xbox, PlayStation, Switch, Wii e compatibili) ---- */
 const GP={on:false,index:-1,id:'',fam:'gen',simple:false,prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null,s4:false,s5:false,seq:[]};
 function gpRumble(strong,weak,dur){
@@ -1823,11 +1833,13 @@ function updGamepad(dt){
  gpShakePoll(p,btn);
  const ui=G.mode!=='play'||!$('#modal').classList.contains('hidden')||!$('#pause').classList.contains('hidden')||!$('#over').classList.contains('hidden');
  if(ui){gpUI(p,btn,edge);GP.prev=p.buttons.map(b=>!!(b&&(b.pressed||b.value>.5)));return}
- const ax=p.axes||[],dz=v=>Math.abs(v)<.18?0:(v-Math.sign(v)*.18)/.82;
- let lx=dz(ax[0]||0),ly=dz(ax[1]||0),rx=dz(ax[2]||0),ry=dz(ax[3]||0);
+ const ax=p.axes||[],dz=v=>Math.abs(v)<.18?0:(v-Math.sign(v)*.18)/.82,src=S.set.gp?.move||'left';
+ let lx=0,ly=0,rx=0,ry=0;
+ if(src==='right'){lx=dz(ax[2]||0);ly=dz(ax[3]||0)}
+ else if(src==='left'){lx=dz(ax[0]||0);ly=dz(ax[1]||0);rx=dz(ax[2]||0);ry=dz(ax[3]||0)}
  if(btn(14))lx=-1;if(btn(15))lx=1;if(btn(12))ly=-1;if(btn(13))ly=1;
  I.gkx=lx;I.gkz=-ly;
- if(rx||ry){cam.yaw-=rx*2.3*dt;cam.pitch=clamp(cam.pitch+ry*1.7*dt,-.6,1.25)}
+ if(src!=='right'&&(rx||ry)){cam.yaw-=rx*2.3*dt;cam.pitch=clamp(cam.pitch+ry*1.7*dt,-.6,1.25)}
  const simple=GP.simple&&!S.set.gp?.custom;
  if(simple){I.gatk=btn(0);I.gjump=btn(1);I.grev=btn(2);if(edge(3))useSlot(0);if(edge(4))useSlot(1)}
  else{I.gatk=btn(gpb('atk'));I.gjump=btn(gpb('jump'));I.grev=btn(gpb('rev'));if(edge(2))useSlot(0);if(edge(3))useSlot(1);if(edge(4))useSlot(2);if(edge(5))useSlot(3)}
@@ -1984,7 +1996,7 @@ else{updateMenu(dt,tAll);updParticles(dt)}
 renderer.render(scene,camera)}
 
 /* ================= AVVIO / LOGIN ================= */
-async function enterWorld(r){U={uid:r.uid,name:r.name};S=Object.assign(defSave(),r.save);S.set=Object.assign(defSave().set,r.save.set||{});S.set.keys=Object.assign(defSave().set.keys,S.set.keys||{});S.set.gp=Object.assign(defSave().set.gp,S.set.gp||{});S.set.mob=Object.assign(defSave().set.mob,S.set.mob||{});applyMob();S.eq=Object.assign(defSave().eq,r.save.eq||{});
+async function enterWorld(r){U={uid:r.uid,name:r.name};S=Object.assign(defSave(),r.save);S.set=Object.assign(defSave().set,r.save.set||{});S.set.keys=Object.assign(defSave().set.keys,S.set.keys||{});S.set.move=Object.assign(defSave().set.move,S.set.move||{});S.set.gp=Object.assign(defSave().set.gp,S.set.gp||{});S.set.mob=Object.assign(defSave().set.mob,S.set.mob||{});applyMob();S.eq=Object.assign(defSave().eq,r.save.eq||{});
 S.skins=Array.isArray(r.save.skins)?r.save.skins:[];S.eqSkin=Object.assign({},r.save.eqSkin||{});S.daily=Object.assign({day:0,last:''},r.save.daily||{});
 showScr('loading');const bar=$('#lbar'),tx=$('#ltxt');const steps=['Caricamento profilo...','Caricamento monete e oggetti...','Preparazione ambiente...','Generazione mondo 3D...'];
 for(let i=0;i<steps.length;i++){tx.textContent=steps[i];bar.style.width=((i+1)/steps.length*100)+'%';await new Promise(r=>setTimeout(r,i===3?50:260));if(i===2){applyGfx();rebuildEnv()}}
