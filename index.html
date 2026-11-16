@@ -1593,9 +1593,9 @@ function gpName(){return (GP.id||'Controller').split(' (')[0].slice(0,30)}
 function gpHint(){
  if(GP.fam==='wii')return '🎮 Wii · A attacca · B salta · 1/2 abilità · D-pad muovi · + pausa';
  const N={xbox:'Xbox',ps:'PlayStation',nin:'Nintendo',gen:'Controller'}[GP.fam]||'Controller';
- const L=GP.fam==='ps'?['✕','◯','□','△','R2']:GP.fam==='nin'?['B','A','Y','X','ZR']:['A','B','X','Y','RT'];
- const S=GP.fam==='ps'?'Options':GP.fam==='nin'?'+':'Start';
- return '🎮 '+N+' · '+L[0]+' salta · '+L[1]+' rianima · '+L[2]+'/'+L[3]+' abilità · '+L[4]+' attacca · '+S+' pausa'
+ const B=GP.fam==='ps'?['✕','◯','□','△','L1','R1','L2','R2']:GP.fam==='nin'?['B','A','Y','X','L','R','ZL','ZR']:['A','B','X','Y','LB','RB','LT','RT'];
+ const S=GP.fam==='ps'?'Options':GP.fam==='nin'?'+':'Start',abil=GP.fam==='ps'?'L1/R1':GP.fam==='nin'?'L/R':'LB/RB';
+ return '🎮 '+N+' · '+(B[gpb('jump')]||'?')+' salta · '+(B[gpb('rev')]||'?')+' rianima · '+(B[gpb('atk')]||'?')+' attacca · '+abil+' abilità · '+S+' pausa'
 }
 function gpSetHint(){const m=$('#menuhint');if(m)m.textContent=GP.on?gpHint():'Trascina per ruotare il personaggio';updateLockHint()}
 function gpVisible(el){return !!el&&el.isConnected&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden'}
