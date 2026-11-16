@@ -168,6 +168,8 @@ input,select{background:#0b0f0a;border:2px solid #556;border-radius:10px;color:#
 .pack .tick{width:18px;height:9px;border-radius:9px;box-shadow:inset 0 -2px 3px #0004,0 1px 2px #0005}
 @keyframes packshake{0%,100%{transform:rotate(0) translate(0)}20%{transform:rotate(-6deg) translate(-3px,0)}40%{transform:rotate(5deg) translate(3px,0)}60%{transform:rotate(-4deg)}80%{transform:rotate(3deg)}}
 .pack.shake{animation:packshake .55s ease-in-out 2}
+@keyframes itshake{0%,100%{transform:translate(0) rotate(0)}20%{transform:translate(-3px,0) rotate(-2deg)}40%{transform:translate(3px,0) rotate(2deg)}60%{transform:translate(-2px,0)}80%{transform:translate(2px,0)}}
+#mbody .it.shake{animation:itshake .5s ease-in-out 2}
 .pack.opening{animation:packpop .5s ease-out}
 @keyframes packpop{0%{transform:scale(1)}40%{transform:scale(1.18) rotate(-4deg)}100%{transform:scale(1)}}
 .packlit{animation:packbuy .6s ease-out}
@@ -457,9 +459,11 @@ function initAudio(){
 function applyVol(){if(!AC)return;gMaster.gain.value=S.set.vol;gSfx.gain.value=S.set.sfx;gMus.gain.value=S.set.music}
 function tone(f,d,ty='square',v=.2,sl=0){if(!AC)return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.setValueAtTime(f,t);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+sl),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(gSfx);o.start(t);o.stop(t+d)}
 function noise(d,v=.2,fr=1500){if(!AC)return;const t=AC.currentTime,s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=nbuf;f.type='bandpass';f.frequency.value=fr;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);s.connect(f);f.connect(g);g.connect(gSfx);s.start(t);s.stop(t+d)}
+let hapticFn=null;
 const SFX={swing:()=>noise(.15,.25,2200),hit:()=>{tone(120,.12,'sawtooth',.25,-60);noise(.08,.2,800)},shoot:()=>{tone(700,.1,'square',.12,-500);noise(.05,.15,3000)},coin:()=>{tone(880,.08,'sine',.12);setTimeout(()=>tone(1320,.1,'sine',.12),70)},
+spend:()=>{tone(520,.07,'square',.12,-160);setTimeout(()=>tone(330,.1,'triangle',.12,-100),65);setTimeout(()=>tone(210,.17,'sine',.09,-50),140)},
 hurt:()=>tone(170,.25,'sawtooth',.3,-100),power:()=>tone(300,.45,'sawtooth',.2,600),boss:()=>tone(70,1.2,'sawtooth',.4,-30),die:()=>tone(220,.5,'triangle',.25,-170),boom:()=>{noise(.4,.4,300);tone(80,.4,'sawtooth',.3,-40)},beam:()=>tone(200,.8,'sawtooth',.15,300),eat:()=>{noise(.09,.22,900);tone(300,.08,'square',.12);setTimeout(()=>tone(430,.1,'square',.1),90)},buy:()=>{tone(520,.08,'square',.1);setTimeout(()=>tone(780,.1,'square',.1),80)},open:()=>{noise(.12,.18,2200);tone(660,.1,'triangle',.12);setTimeout(()=>tone(990,.14,'sine',.1),90)},levelup:()=>{const s=[523.25,659.25,783.99,1046.5,1318.5];s.forEach((f,i)=>setTimeout(()=>{tone(f,.24,'triangle',.16);tone(f*2,.12,'sine',.05)},i*95));setTimeout(()=>noise(.6,.16,4200),430)}};
-const sfx=n=>{if(AC&&SFX[n])SFX[n]()};
+const sfx=n=>{if(AC&&SFX[n])SFX[n]();if(hapticFn)hapticFn(n)};
 /* --- musica: basso + arpeggio + batteria, loop di 4 battute --- */
 function mvoice(f,dur,ty,vol,when,slide,atk){
   if(!AC)return;
@@ -731,7 +735,7 @@ const dmgNow=()=>{const H=heroStat();return H.dmg*(P.fury>0?1.6:1)*(P.candyStr>0
 function toast(m){const d=document.createElement('div');d.textContent=m;$('#toast').appendChild(d);setTimeout(()=>d.remove(),2600)}
 let banT=0;function banner(m){const b=$('#banner');b.textContent=m;b.style.opacity=1;clearTimeout(banT);banT=setTimeout(()=>b.style.opacity=0,2400)}
 function screenOf(x,y,z){const v=new THREE.Vector3(x,y,z).project(camera);if(v.z>1)return{x:innerWidth/2,y:innerHeight*.55};return{x:clamp(v.x*.5+.5,0,1)*innerWidth,y:clamp(-v.y*.5+.5,0,1)*innerHeight}}
-function coinChime(combo){if(!AC)return;const b=880*Math.pow(1.06,Math.min(12,(combo||1)-1));tone(b,.05,'square',.07);setTimeout(()=>tone(b*1.5,.07,'square',.07),50);setTimeout(()=>tone(b*2,.09,'sine',.08),105)}
+function coinChime(combo){if(hapticFn)hapticFn('coin');if(!AC)return;const b=880*Math.pow(1.06,Math.min(12,(combo||1)-1));tone(b,.05,'square',.07);setTimeout(()=>tone(b*1.5,.07,'square',.07),50);setTimeout(()=>tone(b*2,.09,'sine',.08),105)}
 function gainTextAt(sx,sy,n,combo){const d=document.createElement('div');d.className='gainfloat';d.style.left=sx+'px';d.style.top=sy+'px';d.textContent='+'+n+' 🪙'+(combo>2?' ×'+combo:'');$('#coinfx').appendChild(d);d.animate([{transform:'translate(-50%,-50%) scale(.6)',opacity:0},{transform:'translate(-50%,-120%) scale(1.18)',opacity:1,offset:.25},{transform:'translate(-50%,-270%) scale(1)',opacity:0}],{duration:1000,easing:'ease-out'}).onfinish=()=>d.remove()}
 function coinFlyAt(sx,sy,n,tgt){if(!tgt)return;const r=tgt.getBoundingClientRect(),tx=r.left+r.width/2,ty=r.top+r.height/2,cnt=clamp(n,1,6);for(let i=0;i<cnt;i++){const s=document.createElement('div');s.className='flycoin';s.textContent='🪙';s.style.left=(sx+(Math.random()-.5)*30)+'px';s.style.top=(sy+(Math.random()-.5)*24)+'px';$('#coinfx').appendChild(s);const dx=tx-sx,dy=ty-sy,mx=dx*.5+(Math.random()-.5)*70,my=dy*.5-45-Math.random()*35;s.animate([{transform:'translate(-50%,-50%) scale(.8) rotate(0deg)',opacity:1},{transform:`translate(calc(-50% + ${mx}px),calc(-50% + ${my}px)) scale(1.2) rotate(200deg)`,opacity:1,offset:.55},{transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.4) rotate(380deg)`,opacity:0}],{duration:640+Math.random()*260,delay:i*35,easing:'cubic-bezier(.25,.6,.3,1)'}).onfinish=()=>s.remove()}}
 function gainCoins(n,wx,wy,wz){n=Math.round(n);if(!n)return;S.coins+=n;const play=G.mode==='play',tgt=play?$('#hcoins'):$('#tcoin'),now=performance.now();if(now-(gainCoins.t||0)<2600)gainCoins.combo=(gainCoins.combo||1)+1;else gainCoins.combo=1;gainCoins.t=now;if(tgt){tgt.classList.remove('pop');void tgt.offsetWidth;tgt.classList.add('pop')}
@@ -1022,8 +1026,8 @@ if(P.hatOut&&!PR.some(p=>p.k==='hat'))P.hatOut=false}
 /* ================= ZOMBIE ================= */
 function applyDamage(o,d,by,kx=0,kz=0){if(o.dead)return;const T=ZT[o.type];if(T.armor)d*=.6;o.hp-=d;o.flash=.12;const kb=T.boss?0:T.scale>1.5?.3:1;o.kx=(o.kx||0)+kx*kb;o.kz=(o.kz||0)+kz*kb;o.stun=T.boss?0:.12;
 if(o.hp<=0){o.hp=0;o.dead=true;o.dt=0;
- if(o.dummy){if(by===Net.id)TUT.kills++;burst(o.x,1.2,o.z,0x4a7a2a,10,5,4)}
- else{if(by===Net.id)reward(o.type,o.x,o.z);else Net.event('kill',{to:by,t:o.type,x:+o.x.toFixed(2),z:+o.z.toFixed(2)});
+ if(o.dummy){if(by===Net.id){TUT.kills++;if(hapticFn)hapticFn('kill')}burst(o.x,1.2,o.z,0x4a7a2a,10,5,4)}
+ else{if(by===Net.id){reward(o.type,o.x,o.z);if(hapticFn)hapticFn('kill')}else Net.event('kill',{to:by,t:o.type,x:+o.x.toFixed(2),z:+o.z.toFixed(2)});
   if(T.boss){banner('👑 RE ZOMBIE SCONFITTO!');sfx('boom');burst(o.x,3,o.z,0xffd24a,60,14,10,1.6);for(const h of G.hazards)if(h.src===o.id)h.dead=true}}}}
 function spawnZ(type,x,z){const T=ZT[type],D=DIFFS[G.diff],w=G.wave,lv=G.plvl||1,lf=1+Math.min(1.2,.045*(lv-1)),lfd=1+Math.min(.6,.025*(lv-1)),lfs=1+Math.min(.18,.008*(lv-1)),bm=T.boss?1+(Math.floor(w/5)-1)*.5:1,wf=1+(w-1)*.11,wfd=(1+(w-1)*.05)*lfd,wfs=(1+(w-1)*.02)*lfs,hp=T.hp*D.hp*wf*bm*lf;const o={id:G.nid++,type,x,z,ry:0,hp,maxhp:hp,tx:x,tz:z,tr:0,dead:false,dt:0,cd:1,wind:0,ph:Math.random()*6,kx:0,kz:0,flash:0,slow:0,stun:0,at:3,st:'walk',stT:0,wfD:wfd,spdF:wfs};G.zombies.push(o);G.zById[o.id]=o;if(T.boss){sfx('boss');banner('👑 RE ZOMBIE!');}return o}
 function targets(){const t=[];if(P.hp>0)t.push({id:Net.id,me:true,x:P.x,z:P.z,y:P.y});for(const id in Net.peers){const s=Net.peers[id].doc.s;if(s&&s.ing&&s.hp>0)t.push({id,x:s.x,z:s.z,y:s.y||0})}
@@ -1284,10 +1288,10 @@ openModal('🛒 Negozio',h);
 acts.stab=t=>openShop(t,hs);
 acts.sskinhero=id=>openShop('stili',id);
 acts.sskinuse=id=>{S.eqSkin[hs]=id;persist();sfx('coin');if(hs===S.hero)makeMenuHero();openShop('stili',hs)};
-acts.sskinbuy=id=>{const sk=SKINS[hs].find(x=>x.id===id);if(!sk)return;if(buy(sk.price)){S.skins.push(id);S.eqSkin[hs]=id;persist(true);sfx('coin');if(hs===S.hero)makeMenuHero();openShop('stili',hs)}};
-acts.bpow=id=>{const p=POWERS.find(x=>x.id===id);if(buy(p.price)){S.powers.push(id);persist(true);sfx('coin');barItems=abilityBar();openShop('powers',hs)}};
-acts.bitem=id=>{if(buy(ITEMS[id].price)){S.items.push(id);persist(true);sfx('coin');openShop(['helm','armor','trail'][{h:0,a:1,t:2}[id[0]]],hs)}}}
-acts.bspd=()=>{const lv=spdLv();if(lv>=SPD_MAX){toast('Velocità già al massimo');return}if(buy(spdCost(lv))){S.spd=lv+1;persist(true);sfx('coin');toast('🏃 Velocità +'+Math.round(SPD_STEP*100)+'% · livello '+(lv+1)+'/'+SPD_MAX);openShop('speed')}};
+acts.sskinbuy=id=>{const sk=SKINS[hs].find(x=>x.id===id);if(!sk)return;if(buy(sk.price)){S.skins.push(id);S.eqSkin[hs]=id;persist(true);sfx('spend');if(hs===S.hero)makeMenuHero();openShop('stili',hs)}};
+acts.bpow=id=>{const p=POWERS.find(x=>x.id===id);if(buy(p.price)){S.powers.push(id);persist(true);sfx('spend');barItems=abilityBar();openShop('powers',hs)}};
+acts.bitem=id=>{if(buy(ITEMS[id].price)){S.items.push(id);persist(true);sfx('spend');openShop(['helm','armor','trail'][{h:0,a:1,t:2}[id[0]]],hs)}}}
+acts.bspd=()=>{const lv=spdLv();if(lv>=SPD_MAX){toast('Velocità già al massimo');return}if(buy(spdCost(lv))){S.spd=lv+1;persist(true);sfx('spend');toast('🏃 Velocità +'+Math.round(SPD_STEP*100)+'% · livello '+(lv+1)+'/'+SPD_MAX);openShop('speed')}};
 $('#mshop').onclick=()=>{initAudio();openShop('speed')};
 /* ---- Negozio Avanzamenti (bustine generiche) ---- */
 const candyTotal=()=>Object.values(S.candy||{}).reduce((a,b)=>a+(+b||0),0);
@@ -1302,15 +1306,25 @@ function openAdvShop(){
  acts.packbuy=id=>buyPack(id);acts.shakereq=enableShake;
  setupPackDrag();bindShake();
 }
-function buyPack(id){const p=PACKS.find(x=>x.id===id);if(!p)return;if(S.coins<p.price){toast('Non hai abbastanza soldi');return}if(candyTotal()>=CANDY_MAX){toast('🎒 Zaino pieno (10 caramelle)');return}S.coins-=p.price;S.packs=S.packs||{};S.packs[id]=(S.packs[id]||0)+1;persist(true);sfx('buy');const card=document.querySelector(`.packcard[data-pack="${id}"]`);if(card){card.classList.add('packlit');setTimeout(()=>card.classList.remove('packlit'),650)}toast('Busta comprata! Trascina il tappo verso l\'alto per aprirla');setTimeout(openAdvShop,500)}
+function buyPack(id){const p=PACKS.find(x=>x.id===id);if(!p)return;if(S.coins<p.price){toast('Non hai abbastanza soldi');return}if(candyTotal()>=CANDY_MAX){toast('🎒 Zaino pieno (10 caramelle)');return}S.coins-=p.price;S.packs=S.packs||{};S.packs[id]=(S.packs[id]||0)+1;persist(true);sfx('spend');const card=document.querySelector(`.packcard[data-pack="${id}"]`);if(card){card.classList.add('packlit');setTimeout(()=>card.classList.remove('packlit'),650)}toast('Busta comprata! Trascina il tappo verso l\'alto per aprirla');setTimeout(openAdvShop,500)}
 function setupPackDrag(){document.querySelectorAll('#mbody .pack').forEach(pk=>{if((S.packs?.[pk.dataset.pack]||0)<=0)return;const cap=pk.querySelector('.cap');if(!cap)return;let y0=null,dy=0;cap.addEventListener('pointerdown',e=>{e.preventDefault();y0=e.clientY;dy=0;try{cap.setPointerCapture(e.pointerId)}catch{}});cap.addEventListener('pointermove',e=>{if(y0===null)return;dy=Math.min(0,e.clientY-y0);cap.style.transform=`translateY(${dy}px) rotate(${dy*.35}deg)`});const end=()=>{if(y0===null)return;const d=dy;y0=null;if(d<-38){cap.style.transform='translateY(-96px) rotate(-14deg)';openPack(pk.dataset.pack,pk)}else cap.style.transform=''};cap.addEventListener('pointerup',end);cap.addEventListener('pointercancel',end)})}
 function openPack(id,pk){const p=PACKS.find(x=>x.id===id);if(!p||(S.packs?.[id]||0)<=0)return;if(candyTotal()+p.n3>CANDY_MAX){toast('🎒 Zaino pieno: servono '+p.n3+' posti liberi (hai '+candyTotal()+'/'+CANDY_MAX+')');return}pk.classList.add('opening');const n=p.n3,got={};for(let i=0;i<n;i++){const t=p.pool[Math.floor(Math.random()*p.pool.length)];got[t]=(got[t]||0)+1}
  const r=pk.getBoundingClientRect();
  for(let i=0;i<n;i++){const t=Object.keys(got)[i%Object.keys(got).length],c=CANDY[t],el=document.createElement('div');el.className='packcandy';el.style.background=c.hex;el.style.left=(r.left+r.width/2-10)+'px';el.style.top=(r.top+40)+'px';el.style.position='fixed';document.body.appendChild(el);el.animate([{transform:'translate(0,0) scale(.6)',opacity:1},{transform:`translate(${(Math.random()-.5)*70}px,${-50-Math.random()*40}px) scale(1.2) rotate(${(Math.random()-.5)*260}deg)`,opacity:1,offset:.5},{transform:`translate(${(Math.random()-.5)*90}px,40px) scale(.2)`,opacity:0}],{duration:750,delay:i*80,easing:'cubic-bezier(.2,.7,.3,1)'}).onfinish=()=>el.remove()}
  S.packs[id]--;S.candy=S.candy||{};for(const t in got)S.candy[t]=(S.candy[t]||0)+got[t];persist(true);sfx('open');updCandyBtn();toast('🍬 '+Object.entries(got).map(([t,c])=>CANDY[t].ico+' '+CANDY[t].n+' ×'+c).join(' · '));setTimeout(openAdvShop,900)}
-function bindShake(){if(bindShake.on)return;bindShake.on=true;addEventListener('devicemotion',e=>{const a=e.accelerationIncludingGravity;if(!a)return;const m=Math.hypot(a.x||0,a.y||0,a.z||0),now=performance.now();if(m>24&&now-(bindShake.t||0)>900){bindShake.t=now;document.querySelectorAll('#mbody .pack').forEach(p=>{p.classList.remove('shake');void p.offsetWidth;p.classList.add('shake')});setTimeout(()=>document.querySelectorAll('#mbody .pack').forEach(p=>p.classList.remove('shake')),1200)}},{passive:true})}
-function enableShake(){bindShake();if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){DeviceMotionEvent.requestPermission().then(r=>{if(r==='granted'){bindShake();toast('📳 Scuoti il dispositivo!')}else toast('Sensore non autorizzato')}).catch(()=>toast('Sensore non disponibile'))}else toast(isTouch?'📳 Scuoti il dispositivo!':'Su desktop non c\'è il sensore: trascina il tappo col mouse')}
-function openBackpack(){const total=candyTotal(),used=G.candyTypes||[];let h=`<p>🎒 Caramelle: <b>${total}/${CANDY_MAX}</b> · Avanzamenti usati: <b>${used.length}/${CANDY_TYPES}</b></p><div class="grid">`;for(const id in CANDY){const c=CANDY[id],n=(S.candy?.[id]||0),usedIt=used.includes(id),blocked=!usedIt&&used.length>=CANDY_TYPES;h+=`<div class="it"><b>${c.ico} ${c.n}</b><span>${c.d} · ${c.dur}s</span><span>Disponibili: <b>${n}</b>${usedIt?' · ✔ usato':''}</span>${n>0&&G.mode==='play'&&!blocked?`<button class="btn sm alt" data-a="cuse" data-id="${id}">Mangia</button>`:`<button class="btn sm" disabled>${G.mode!=='play'?'Solo in partita':blocked?'Limite 3 tipi':'Non ne hai'}</button>`}</div>`}h+='</div><p class="small">Ogni caramella dura il tempo indicato. Puoi usare al massimo 3 tipi diversi per partita.</p>';openModal('🎒 Zaino avanzamenti',h);acts.cuse=id=>useCandy(id)}
+function shakePackUI(){
+ const root=$('#mbody'),title=$('#mtitle')?.textContent||'';
+ if(!root||!/Avanzamenti|Zaino/i.test(title))return false;
+ const els=[...root.querySelectorAll('.pack,.it')].filter(e=>!e.classList.contains('opening'));
+ if(!els.length)return false;
+ els.forEach(e=>{e.classList.remove('shake');void e.offsetWidth;e.classList.add('shake')});
+ clearTimeout(shakePackUI.t);shakePackUI.t=setTimeout(()=>els.forEach(e=>e.classList.remove('shake')),1300);
+ return true
+}
+function shakeAll(){if(hapticFn)hapticFn('shake');if(G.mode==='play')G.shake=Math.max(G.shake,.18);shakePackUI()}
+function bindShake(){if(bindShake.on)return;bindShake.on=true;addEventListener('devicemotion',e=>{const a=e.accelerationIncludingGravity;if(!a)return;const m=Math.hypot(a.x||0,a.y||0,a.z||0),now=performance.now();if(m>24&&now-(bindShake.t||0)>900){bindShake.t=now;shakeAll()}},{passive:true})}
+function enableShake(){bindShake();if(GP.on){shakeAll();toast('📳 Scuoti il controller o muovi lo stick sinistro');return}if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){DeviceMotionEvent.requestPermission().then(r=>{if(r==='granted'){bindShake();toast('📳 Scuoti il dispositivo!')}else toast('Sensore non autorizzato')}).catch(()=>toast('Sensore non disponibile'))}else{shakeAll();toast(isTouch?'📳 Scuoti il dispositivo!':'📳 Scuoti il controller o muovi lo stick sinistro')}}
+function openBackpack(){const total=candyTotal(),used=G.candyTypes||[];let h=`<p>🎒 Caramelle: <b>${total}/${CANDY_MAX}</b> · Avanzamenti usati: <b>${used.length}/${CANDY_TYPES}</b> · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><div class="grid">`;for(const id in CANDY){const c=CANDY[id],n=(S.candy?.[id]||0),usedIt=used.includes(id),blocked=!usedIt&&used.length>=CANDY_TYPES;h+=`<div class="it"><b>${c.ico} ${c.n}</b><span>${c.d} · ${c.dur}s</span><span>Disponibili: <b>${n}</b>${usedIt?' · ✔ usato':''}</span>${n>0&&G.mode==='play'&&!blocked?`<button class="btn sm alt" data-a="cuse" data-id="${id}">Mangia</button>`:`<button class="btn sm" disabled>${G.mode!=='play'?'Solo in partita':blocked?'Limite 3 tipi':'Non ne hai'}</button>`}</div>`}h+='</div><p class="small">Ogni caramella dura il tempo indicato. Puoi usare al massimo 3 tipi diversi per partita.</p>';openModal('🎒 Zaino avanzamenti',h);acts.cuse=id=>useCandy(id);acts.shakereq=enableShake;bindShake()}
 function useCandy(type){const C=CANDY[type];if(!C)return;if(G.mode!=='play'){toast('Le caramelle si usano in partita');return}if(P.hp<=0||P.out){toast('Sei eliminato: aspetti la fine del round');return}if((S.candy?.[type]||0)<=0){toast('Non hai caramelle '+C.n);return}G.candyTypes=G.candyTypes||[];if(!G.candyTypes.includes(type)&&G.candyTypes.length>=CANDY_TYPES){toast('Massimo 3 avanzamenti diversi per partita');return}S.candy[type]--;if(!G.candyTypes.includes(type))G.candyTypes.push(type);
  if(type==='str')P.candyStr=C.dur;else if(type==='spd')P.candySpd=C.dur;else if(type==='hp'){P.candyHp=C.dur;P.hp=Math.min(P.mhp+60,P.hp+70)}else if(type==='poison'){P.candyPoison=C.dur;P.candyPT=0}else if(type==='storm'){P.candyStorm=C.dur;P.inv=Math.max(P.inv,.5)}
  sfx('eat');burst(P.x,1.3,P.z,C.col,24,6,5,1);fxAt('buff',P.x,P.z,C.col,{d:.9});toast(C.ico+' '+C.n+' · '+C.dur+'s');persist(true);closeModal();updCandyBtn()}
@@ -1332,7 +1346,7 @@ const KINDN={sword:'Mischia',spear:'Mischia lunga',hammer:'Mischia pesante',gun:
 function openHeroes(){let h='<div class="grid">';for(const id in HEROES){const H=HEROES[id],own=S.heroes.includes(id),sk=curSkin(id);
 h+=`<div class="it"><b>${H.n}</b><span>${H.desc}</span><span>${hexDot(sk.c.shirt)}${sk.n} · ${KINDN[H.kind]||''}</span><span>${H.ab.map(k=>ABIL[k].ico+' '+ABIL[k].n).join(' · ')}</span><span>❤ ${H.hp} ⚔ ${H.dmg} ⚡ ${H.spd}</span>${S.hero===id?'<button class="btn sm" disabled>✔ In uso</button>':own?`<button class="btn sm alt" data-a="hsel" data-id="${id}">Usa</button>`:`<button class="btn sm ${S.coins<H.price?'poor':''}" data-a="hbuy" data-id="${id}">Sblocca 🪙${H.price}</button>`}</div>`}
 openModal('🦸 Eroi',h+'</div><p class="small">Ogni eroe ha 2 abilita proprie (tasti 1 e 2). Gli stili si comprano nel Negozio → Stili.</p>');
-acts.hsel=id=>{S.hero=id;persist();makeMenuHero();barItems=abilityBar();openHeroes()};acts.hbuy=id=>{if(buy(HEROES[id].price)){S.heroes.push(id);S.hero=id;persist(true);sfx('coin');makeMenuHero();barItems=abilityBar();openHeroes()}}}
+acts.hsel=id=>{S.hero=id;persist();makeMenuHero();barItems=abilityBar();openHeroes()};acts.hbuy=id=>{if(buy(HEROES[id].price)){S.heroes.push(id);S.hero=id;persist(true);sfx('spend');makeMenuHero();barItems=abilityBar();openHeroes()}}}
 $('#mheroes').onclick=openHeroes;
 /* ---- Incarichi ---- */
 function openQuests(){let h='';for(const q of QUESTS){const v=Math.min(q.g,S.q[q.k]||0),done=v>=q.g,cl=S.qc[q.id];h+=`<div class="lob"><div style="flex:1"><b>${q.n}</b><div class="prog"><i style="width:${v/q.g*100}%"></i></div><span class="small">${v}/${q.g} · ✨${q.xp} XP · 🪙${q.c}${q.item?' · 🎁 '+ITEMS[q.item].n:''}</span></div>${cl?'<button class="btn sm" disabled>✔</button>':done?`<button class="btn sm" data-a="qc" data-id="${q.id}">Riscuoti</button>`:'<button class="btn sm" disabled>…</button>'}</div>`}
@@ -1452,7 +1466,7 @@ $('#pset').onclick=openSettings;$('#pexit').onclick=exitToMenu;$('#oagain').oncl
 function toggleFull(){const el=document.documentElement,on=document.fullscreenElement||document.webkitFullscreenElement;try{if(on){(document.exitFullscreen||document.webkitExitFullscreen).call(document)}else{const f=el.requestFullscreen||el.webkitRequestFullscreen;if(!f){toast('Fullscreen non supportato dal browser');return}Promise.resolve(f.call(el)).catch(()=>toast('Fullscreen non disponibile'))}}catch(e){toast('Fullscreen non disponibile')}}
 $('#mfull').onclick=toggleFull;$('#pfull').onclick=toggleFull;
 document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('.btn');if(!b)return;const r=b.getBoundingClientRect(),s=document.createElement('span');s.className='ripple';s.style.left=(e.clientX-r.left)+'px';s.style.top=(e.clientY-r.top)+'px';b.appendChild(s);setTimeout(()=>s.remove(),560)},{passive:true});
-$('#bTower').onclick=()=>{if(G.gm!=='ops'||!(P.down>0||P.out))return;if(S.coins<1000){toast('Non hai abbastanza soldi');return}S.coins-=1000;persist(true);Net.event('tower',{});towerRevive();toast('🌻 Torre rianimata per tutta la squadra!')};
+$('#bTower').onclick=()=>{if(G.gm!=='ops'||!(P.down>0||P.out))return;if(S.coins<1000){toast('Non hai abbastanza soldi');return}S.coins-=1000;sfx('spend');persist(true);Net.event('tower',{});towerRevive();toast('🌻 Torre rianimata per tutta la squadra!')};
 $('#mlogout').onclick=async()=>{await flush();await BE.logout();leaveLobby();S=defSave();U={uid:'guest',name:'Ospite'};clearMenuHero();showScr('auth')};
 
 /* ================= INPUT ================= */
@@ -1464,7 +1478,39 @@ kb()});
 addEventListener('keyup',e=>{const k=e.code;KEYS[k]=false;if(k==='Space')I.jump=false;if(k==='KeyF')I.atk=false;kb()});
 function kb(){I.kx=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0);I.kz=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0)}
 /* ---- CONTROLLER (Gamepad API: Xbox, PlayStation, Switch, Wii e compatibili) ---- */
-const GP={on:false,index:-1,id:'',fam:'gen',prev:[],focusEl:null,navT:0,navDir:0,selDir:0};
+const GP={on:false,index:-1,id:'',fam:'gen',prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null};
+function gpRumble(strong,weak,dur){
+ let p=null;try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
+ const act=p&&(p.vibrationActuator||(p.hapticActuators&&p.hapticActuators[0]));if(!act)return;
+ try{const r=act.playEffect?act.playEffect('dual-rumble',{startDelay:0,duration:dur,strongMagnitude:clamp(strong,0,1),weakMagnitude:clamp(weak,0,1)}):act.pulse?act.pulse(Math.max(strong,weak),dur):null;if(r&&r.catch)r.catch(()=>{})}catch(e){}
+}
+function haptic(kind){
+ const now=performance.now();
+ if(kind==='coin'){if(now-(haptic.c||0)<100)return;haptic.c=now}
+ const P={coin:[.25,.4,45],spend:[.55,.4,120],level:[.85,.75,420],eat:[.35,.55,120],kill:[.3,.35,55],shake:[.75,.85,260],buy:[.5,.4,100]}[kind];
+ if(!P)return;
+ if(kind==='level'){gpRumble(P[0],P[1],160);setTimeout(()=>gpRumble(.65,.55,180),170);setTimeout(()=>gpRumble(.45,.4,300),350);return}
+ gpRumble(P[0],P[1],P[2])
+}
+function gpShakePoll(p,btn){
+ const now=performance.now(),pose=p.pose;
+ if(pose){
+  const av=pose.angularVelocity;
+  if(av){const w=Math.hypot(av.x||0,av.y||0,av.z||0);if(w>3&&now-GP.shakeT>800){GP.shakeT=now;shakeAll()}}
+  const v=pose.linearAcceleration||pose.linearVelocity;
+  if(v){
+   if(GP.lastV){const j=Math.hypot((v.x||0)-GP.lastV.x,(v.y||0)-GP.lastV.y,(v.z||0)-GP.lastV.z);if(j>2.5&&now-GP.shakeT>800){GP.shakeT=now;shakeAll()}}
+   GP.lastV={x:v.x||0,y:v.y||0,z:v.z||0}
+  }
+ }else GP.lastV=null;
+ const ax=p.axes||[],sx=ax[0]||0,sy=ax[1]||0;
+ if(Math.hypot(sx,sy)>.75){
+  GP.wig=GP.wig||[];GP.wig.push({t:now,x:sx,y:sy});
+  while(GP.wig.length&&now-GP.wig[0].t>650)GP.wig.shift();
+  let rev=0;for(let i=1;i<GP.wig.length;i++)if(GP.wig[i-1].x*GP.wig[i].x<0||GP.wig[i-1].y*GP.wig[i].y<0)rev++;
+  if(rev>=3&&now-GP.shakeT>950){GP.shakeT=now;GP.wig=[];shakeAll()}
+ }else if(GP.wig)GP.wig.length=0;
+}
 function gpFam(id){id=(id||'').toLowerCase();if(/wii remote|wiimote/.test(id))return'wii';if(/xbox|xinput|microsoft/.test(id))return'xbox';if(/playstation|dualshock|dualsense|sony|wireless controller|054c/.test(id))return'ps';if(/nintendo|switch|joy-con|pro controller|wii|057e/.test(id))return'nin';return'gen'}
 function gpName(){return (GP.id||'Controller').split(' (')[0].slice(0,30)}
 function gpHint(){
@@ -1511,9 +1557,11 @@ function updGamepad(dt){
  if(!navigator.getGamepads)return;let p=null;
  try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
  if(!p){if(GP.on){GP.on=false;GP.index=-1;GP.id='';GP.prev=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()}return}
- if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));toast('🎮 '+gpName()+' connesso');gpSetHint()}
+ if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;toast('🎮 '+gpName()+' connesso');gpSetHint()}
  const btn=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.5));
  const edge=i=>btn(i)&&!GP.prev[i];
+ if(!GP.audio&&(p.buttons||[]).some(b=>b&&(b.pressed||b.value>.5))){GP.audio=true;try{initAudio()}catch(e){}}
+ gpShakePoll(p,btn);
  const ui=G.mode!=='play'||!$('#modal').classList.contains('hidden')||!$('#pause').classList.contains('hidden')||!$('#over').classList.contains('hidden');
  if(ui){gpUI(p,btn,edge);GP.prev=p.buttons.map(b=>!!(b&&(b.pressed||b.value>.5)));return}
  const ax=p.axes||[],dz=v=>Math.abs(v)<.18?0:(v-Math.sign(v)*.18)/.82;
@@ -1528,8 +1576,9 @@ function updGamepad(dt){
  if(edge(9))gpPause();
  GP.prev=p.buttons.map(b=>!!(b&&(b.pressed||b.value>.5)));
 }
-addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));toast('🎮 '+gpName()+' connesso');gpSetHint()}});
-addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
+addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;toast('🎮 '+gpName()+' connesso');gpSetHint()}});
+addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
+hapticFn=haptic;
 // zoom unico (rotella + pinch), con scatto in prima persona sotto 1.4
 function zoomBy(d){cam.dist=clamp(cam.dist+d,0,10);if(cam.dist>0&&cam.dist<1.4)cam.dist=d<0?0:1.4}
 
