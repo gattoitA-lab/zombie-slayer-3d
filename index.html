@@ -1369,7 +1369,7 @@ function updCandyBtn(){const el=$('#bcandyn');if(el)el.textContent=candyTotal()+
 function packTicks(p){let h='';for(let i=0;i<9;i++){const t=p.pool[i%p.pool.length],c=CANDY[t];h+=`<span class="tick" style="background:${c.hex};opacity:${.55+Math.random()*.45}"></span>`}return h}
 function openAdvShop(){
  const total=candyTotal(),owned=S.packs||{};
- let h=`<p>🪙 ${S.coins} · 🎒 caramelle ${total}/${CANDY_MAX} · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><div class="grid">`;
+ let h=`<p>🪙 ${S.coins} · 🎒 caramelle ${total}/${CANDY_MAX} · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><p class="small">Controller Xbox/PS: il browser non legge il movimento fisico. Muovi rapidamente lo stick sinistro o alterna LB/RB per scuotere le buste.</p><div class="grid">`;
  for(const p of PACKS){h+=`<div class="packcard" data-pack="${p.id}"><div class="pack" data-pack="${p.id}" style="box-shadow:inset 0 8px 18px #0008,0 0 18px ${p.hex}33"><div class="cap">${p.short}</div><div class="pbody">${packTicks(p)}</div></div><b>${p.n}</b><span>${p.d} · ${p.n3} caramelle</span><span>Prezzo: <b>🪙 ${p.price}</b> · ${Math.round(p.price/p.n3)} a caramella</span><span class="small">${p.pool.map(t=>CANDY[t].ico+' '+CANDY[t].n).join(' · ')}</span>${owned[p.id]?`<span style="color:#ffd58a">Hai ${owned[p.id]} bust${owned[p.id]>1?'e':'a'} da aprire: trascina il tappo verso l'alto</span>`:''}<button class="btn sm ${S.coins<p.price?'poor':''}" data-a="packbuy" data-id="${p.id}">Compra busta</button></div>`}
  h+='</div><p class="small">Zaino massimo 10 caramelle. In partita puoi usare al massimo 3 avanzamenti diversi. Le caramelle durano il tempo indicato.</p>';
  openModal('🍬 Negozio Avanzamenti',h);
@@ -1393,8 +1393,8 @@ function shakePackUI(){
 }
 function shakeAll(){if(hapticFn)hapticFn('shake');if(G.mode==='play')G.shake=Math.max(G.shake,.18);shakePackUI()}
 function bindShake(){if(bindShake.on)return;bindShake.on=true;addEventListener('devicemotion',e=>{const a=e.accelerationIncludingGravity;if(!a)return;const m=Math.hypot(a.x||0,a.y||0,a.z||0),now=performance.now();if(m>24&&now-(bindShake.t||0)>900){bindShake.t=now;shakeAll()}},{passive:true})}
-function enableShake(){bindShake();if(GP.on){shakeAll();toast('📳 Scuoti il controller o muovi lo stick sinistro');return}if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){DeviceMotionEvent.requestPermission().then(r=>{if(r==='granted'){bindShake();toast('📳 Scuoti il dispositivo!')}else toast('Sensore non autorizzato')}).catch(()=>toast('Sensore non disponibile'))}else{shakeAll();toast(isTouch?'📳 Scuoti il dispositivo!':'📳 Scuoti il controller o muovi lo stick sinistro')}}
-function openBackpack(){const total=candyTotal(),used=G.candyTypes||[];let h=`<p>🎒 Caramelle: <b>${total}/${CANDY_MAX}</b> · Avanzamenti usati: <b>${used.length}/${CANDY_TYPES}</b> · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><div class="grid">`;for(const id in CANDY){const c=CANDY[id],n=(S.candy?.[id]||0),usedIt=used.includes(id),blocked=!usedIt&&used.length>=CANDY_TYPES;h+=`<div class="it"><b>${c.ico} ${c.n}</b><span>${c.d} · ${c.dur}s</span><span>Disponibili: <b>${n}</b>${usedIt?' · ✔ usato':''}</span>${n>0&&G.mode==='play'&&!blocked?`<button class="btn sm alt" data-a="cuse" data-id="${id}">Mangia</button>`:`<button class="btn sm" disabled>${G.mode!=='play'?'Solo in partita':blocked?'Limite 3 tipi':'Non ne hai'}</button>`}</div>`}h+='</div><p class="small">Ogni caramella dura il tempo indicato. Puoi usare al massimo 3 tipi diversi per partita.</p>';openModal('🎒 Zaino avanzamenti',h);acts.cuse=id=>useCandy(id);acts.shakereq=enableShake;bindShake()}
+function enableShake(){bindShake();if(GP.on){shakeAll();toast('🎮 Controller: muovi lo stick sinistro o alterna LB/RB');return}if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){DeviceMotionEvent.requestPermission().then(r=>{if(r==='granted'){bindShake();toast('📳 Scuoti il dispositivo!')}else toast('Sensore non autorizzato')}).catch(()=>toast('Sensore non disponibile'))}else{shakeAll();toast(isTouch?'📳 Scuoti il dispositivo!':'🎮 Controller: muovi lo stick sinistro o alterna LB/RB')}}
+function openBackpack(){const total=candyTotal(),used=G.candyTypes||[];let h=`<p>🎒 Caramelle: <b>${total}/${CANDY_MAX}</b> · Avanzamenti usati: <b>${used.length}/${CANDY_TYPES}</b> · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><div class="grid">`;for(const id in CANDY){const c=CANDY[id],n=(S.candy?.[id]||0),usedIt=used.includes(id),blocked=!usedIt&&used.length>=CANDY_TYPES;h+=`<div class="it"><b>${c.ico} ${c.n}</b><span>${c.d} · ${c.dur}s</span><span>Disponibili: <b>${n}</b>${usedIt?' · ✔ usato':''}</span>${n>0&&G.mode==='play'&&!blocked?`<button class="btn sm alt" data-a="cuse" data-id="${id}">Mangia</button>`:`<button class="btn sm" disabled>${G.mode!=='play'?'Solo in partita':blocked?'Limite 3 tipi':'Non ne hai'}</button>`}</div>`}h+='</div><p class="small">Ogni caramella dura il tempo indicato. Puoi usare al massimo 3 tipi diversi per partita.</p><p class="small">Controller Xbox/PS: muovi rapidamente lo stick sinistro o alterna LB/RB per scuotere caramelle e buste.</p>';openModal('🎒 Zaino avanzamenti',h);acts.cuse=id=>useCandy(id);acts.shakereq=enableShake;bindShake()}
 function useCandy(type){const C=CANDY[type];if(!C)return;if(G.mode!=='play'){toast('Le caramelle si usano in partita');return}if(P.hp<=0||P.out){toast('Sei eliminato: aspetti la fine del round');return}if((S.candy?.[type]||0)<=0){toast('Non hai caramelle '+C.n);return}G.candyTypes=G.candyTypes||[];if(!G.candyTypes.includes(type)&&G.candyTypes.length>=CANDY_TYPES){toast('Massimo 3 avanzamenti diversi per partita');return}S.candy[type]--;if(!G.candyTypes.includes(type))G.candyTypes.push(type);
  if(type==='str')P.candyStr=C.dur;else if(type==='spd')P.candySpd=C.dur;else if(type==='hp'){P.candyHp=C.dur;P.hp=Math.min(P.mhp+60,P.hp+70)}else if(type==='poison'){P.candyPoison=C.dur;P.candyPT=0}else if(type==='storm'){P.candyStorm=C.dur;P.inv=Math.max(P.inv,.5)}
  sfx('eat');burst(P.x,1.3,P.z,C.col,24,6,5,1);fxAt('buff',P.x,P.z,C.col,{d:.9});toast(C.ico+' '+C.n+' · '+C.dur+'s');persist(true);closeModal();updCandyBtn()}
@@ -1561,7 +1561,7 @@ kb()});
 addEventListener('keyup',e=>{const k=e.code;KEYS[k]=false;if(k===keyb('jump'))I.jump=false;if(k===keyb('atk'))I.atk=false;kb()});
 function kb(){I.kx=(KEYS.KeyD||KEYS.ArrowRight?1:0)-(KEYS.KeyA||KEYS.ArrowLeft?1:0);I.kz=(KEYS.KeyW||KEYS.ArrowUp?1:0)-(KEYS.KeyS||KEYS.ArrowDown?1:0)}
 /* ---- CONTROLLER (Gamepad API: Xbox, PlayStation, Switch, Wii e compatibili) ---- */
-const GP={on:false,index:-1,id:'',fam:'gen',prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null};
+const GP={on:false,index:-1,id:'',fam:'gen',prev:[],focusEl:null,navT:0,navDir:0,selDir:0,audio:false,shakeT:0,lastV:null,wig:null,s4:false,s5:false,seq:[]};
 function gpRumble(strong,weak,dur){
  let p=null;try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
  const act=p&&(p.vibrationActuator||(p.hapticActuators&&p.hapticActuators[0]));if(!act)return;
@@ -1576,23 +1576,31 @@ function haptic(kind){
  gpRumble(P[0],P[1],P[2])
 }
 function gpShakePoll(p,btn){
- const now=performance.now(),pose=p.pose;
+ const now=performance.now(),pose=p.pose,trigger=()=>{GP.shakeT=now;GP.wig=[];GP.seq=[];shakeAll()};
  if(pose){
   const av=pose.angularVelocity;
-  if(av){const w=Math.hypot(av.x||0,av.y||0,av.z||0);if(w>3&&now-GP.shakeT>800){GP.shakeT=now;shakeAll()}}
+  if(av){const w=Math.hypot(av.x||0,av.y||0,av.z||0);if(w>3&&now-GP.shakeT>800)trigger()}
   const v=pose.linearAcceleration||pose.linearVelocity;
   if(v){
-   if(GP.lastV){const j=Math.hypot((v.x||0)-GP.lastV.x,(v.y||0)-GP.lastV.y,(v.z||0)-GP.lastV.z);if(j>2.5&&now-GP.shakeT>800){GP.shakeT=now;shakeAll()}}
+   if(GP.lastV){const j=Math.hypot((v.x||0)-GP.lastV.x,(v.y||0)-GP.lastV.y,(v.z||0)-GP.lastV.z);if(j>2.5&&now-GP.shakeT>800)trigger()}
    GP.lastV={x:v.x||0,y:v.y||0,z:v.z||0}
   }
  }else GP.lastV=null;
  const ax=p.axes||[],sx=ax[0]||0,sy=ax[1]||0;
- if(Math.hypot(sx,sy)>.75){
+ if(Math.hypot(sx,sy)>.55){
   GP.wig=GP.wig||[];GP.wig.push({t:now,x:sx,y:sy});
-  while(GP.wig.length&&now-GP.wig[0].t>650)GP.wig.shift();
+  while(GP.wig.length&&now-GP.wig[0].t>800)GP.wig.shift();
   let rev=0;for(let i=1;i<GP.wig.length;i++)if(GP.wig[i-1].x*GP.wig[i].x<0||GP.wig[i-1].y*GP.wig[i].y<0)rev++;
-  if(rev>=3&&now-GP.shakeT>950){GP.shakeT=now;GP.wig=[];shakeAll()}
+  if(rev>=2&&now-GP.shakeT>800)trigger()
  }else if(GP.wig)GP.wig.length=0;
+ const menu=G.mode!=='play'||!$('#modal').classList.contains('hidden')||!$('#pause').classList.contains('hidden')||!$('#over').classList.contains('hidden');
+ if(menu){
+  const f4=btn(4),f5=btn(5);
+  if(f4&&!GP.s4)GP.seq.push(4);if(f5&&!GP.s5)GP.seq.push(5);
+  GP.s4=f4;GP.s5=f5;GP.seq=(GP.seq||[]).filter(t=>now-t<900);
+  let alt=0;for(let i=1;i<GP.seq.length;i++)if(GP.seq[i]!==GP.seq[i-1])alt++;
+  if(alt>=2&&GP.seq.length>=3&&now-GP.shakeT>800)trigger()
+ }else{GP.s4=false;GP.s5=false;GP.seq=[]}
 }
 function gpFam(id){id=(id||'').toLowerCase();if(/wii remote|wiimote/.test(id))return'wii';if(/xbox|xinput|microsoft/.test(id))return'xbox';if(/playstation|dualshock|dualsense|sony|wireless controller|054c/.test(id))return'ps';if(/nintendo|switch|joy-con|pro controller|wii|057e/.test(id))return'nin';return'gen'}
 function gpName(){return (GP.id||'Controller').split(' (')[0].slice(0,30)}
@@ -1656,7 +1664,7 @@ function updGamepad(dt){
  if(!navigator.getGamepads)return;let p=null;
  try{for(const g of navigator.getGamepads())if(g&&g.connected){p=g;break}}catch(e){return}
  if(!p){if(GP.on){GP.on=false;GP.index=-1;GP.id='';GP.prev=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()}return}
- if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;toast('🎮 '+gpName()+' connesso');gpSetHint()}
+ if(!GP.on||GP.index!==p.index){GP.on=true;GP.index=p.index;GP.id=p.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(p.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}
  const btn=i=>!!(p.buttons[i]&&(p.buttons[i].pressed||p.buttons[i].value>.5));
  const edge=i=>btn(i)&&!GP.prev[i];
  if(!GP.audio&&(p.buttons||[]).some(b=>b&&(b.pressed||b.value>.5))){GP.audio=true;try{initAudio()}catch(e){}}
@@ -1675,8 +1683,8 @@ function updGamepad(dt){
  if(edge(9))gpPause();
  GP.prev=p.buttons.map(b=>!!(b&&(b.pressed||b.value>.5)));
 }
-addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;toast('🎮 '+gpName()+' connesso');gpSetHint()}});
-addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
+addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];toast('🎮 '+gpName()+' connesso');gpSetHint()}});
+addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;GP.s4=false;GP.s5=false;GP.seq=[];I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
 document.addEventListener('pointerdown',()=>{if(GP.focusEl){GP.focusEl.classList.remove('gp-focus');GP.focusEl=null}},true);
 hapticFn=haptic;
 // zoom unico (rotella + pinch), con scatto in prima persona sotto 1.4
