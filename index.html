@@ -667,7 +667,7 @@ function destroyStruct(s,remote){
 }
 function damageStructs(x,z,r,dmg,y){
  if(!G.mode2d||!G.destructStruct||!G.structs?.length)return;
- for(const s of G.structs){if(s.dead||(s.ground&&!G.destructFloor))continue;if(Math.hypot(s.x-x,s.z-z)>r+s.w/2)continue;if(y!=null&&Math.abs(s.y-y)>r+1.6)continue;
+ for(const s of G.structs){if(s.dead||(s.ground&&!G.destructFloor))continue;if(s.ground&&P.y<=SIDE_FLOOR_Y+.3&&Math.abs(P.x-s.x)<(s.w||0)/2+.3)continue;if(Math.hypot(s.x-x,s.z-z)>r+s.w/2)continue;if(y!=null&&Math.abs(s.y-y)>r+1.6)continue;
   s.hp-=dmg;const sc=Math.max(.18,s.hp/100);s.mesh.scale.y=s.h*sc;s.mesh.position.y=s.baseY+(s.h-s.h*sc)/2;
   if(s.hp<=0)destroyStruct(s,false)
  }
