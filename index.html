@@ -19,6 +19,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:syste
 .btn.red{background:linear-gradient(#e0483a,#a81f1c);border-color:#ffb0a8;box-shadow:0 4px 0 #5a0f0d}
 .btn.sm{padding:.4em .8em;font-size:14px}
 .btn[disabled]{filter:grayscale(1);opacity:.6}
+.btn.poor{filter:grayscale(1) brightness(.72);opacity:.55;cursor:not-allowed;box-shadow:0 4px 0 #2a2a2a,0 6px 12px #0004}
+.btn.poor:hover{filter:grayscale(1) brightness(.72);transform:none;box-shadow:0 4px 0 #2a2a2a,0 6px 12px #0004}
+.btn.poor::after{display:none}
 #loading{background:radial-gradient(#2d3b22,#0b0f08);display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;z-index:50}
 #loading h1{font-size:clamp(28px,6vw,64px);margin:0 0 20px;letter-spacing:3px;color:#ffb347;text-shadow:0 4px 0 #6b2d0a,0 0 30px #ff7a1a88}
 .bar{width:min(420px,80vw);height:16px;border:2px solid #ffd58a;border-radius:10px;overflow:hidden;background:#0008}
@@ -1224,7 +1227,7 @@ if(rev.tgt&&P.hp>0){rh.classList.add('on');$('#revtxt').textContent=(isTouch?'�
 $('#bRev').classList.toggle('hidden',!(rev.tgt&&P.hp>0));
 const opsDown=G.gm==='ops'&&(dn||P.out),bt=$('#bTower');
 bt.classList.toggle('hidden',!opsDown);
-if(opsDown){bt.disabled=S.coins<1000;bt.textContent=S.coins>=1000?'🌻 Rianima la torre · 1000 🪙':'🌻 Rianima la torre · servono 1000 🪙'}
+if(opsDown){bt.disabled=false;bt.classList.toggle('poor',S.coins<1000);bt.textContent=S.coins>=1000?'🌻 Rianima la torre · 1000 🪙':'🌻 Rianima la torre · servono 1000 🪙'}
 $('#hstat').innerHTML=(P.burn>0?'<span>🔥</span>':'')+(P.poison>0?'<span>☠️</span>':'')+(P.shieldT>0?'<span>⏳</span>':'')+(P.fury>0?'<span>😤</span>':'')+(P.regen>0?'<span>🌿</span>':'')+(P.rapid>0?'<span>🔫</span>':'');
 const bo=G.zombies.find(z=>z.type==='boss'&&!z.dead);$('#boss').classList.toggle('hidden',!bo||dn||P.out);if(bo)$('#bossf').style.width=clamp(bo.hp/bo.maxhp*100,0,100)+'%';
 [...$('#pw').children].forEach((e,i)=>{const it=barItems[i],c=it?(P.cd[it.key]||0):0;e.lastChild.style.height=it&&c>0?(c/it.cd*100)+'%':'0'})}
@@ -1260,22 +1263,22 @@ acts.gfx=v=>{S.set.gfx=+v;$('#gl').textContent=GFX[S.set.gfx].n;clearTimeout(act
 $('#mset').onclick=openSettings;
 
 /* ---- Negozio ---- */
-function buy(price){if(S.coins<price){toast('Monete insufficienti');return false}S.coins-=price;return true}
+function buy(price){if(S.coins<price){toast('Non hai abbastanza soldi');return false}S.coins-=price;return true}
 const hexDot=c=>'<span class="sw" style="background:#'+c.toString(16).padStart(6,'0')+'"></span>';
 function openShop(tab='stili',hs){hs=hs||S.hero;
 const tabs=[['speed','🏃 Velocità'],['stili','🎭 Stili'],['powers','⚡ Poteri'],['helm','⛑ Elmi'],['armor','🛡 Armature'],['trail','✨ Scie']];
 let h='<div class="tabs">'+tabs.map(t=>`<span class="tab ${tab===t[0]?'on':''}" data-a="stab" data-id="${t[0]}">${t[1]}</span>`).join('')+'</div><p>🪙 '+S.coins+'</p>';
-if(tab==='speed'){const lv=spdLv(),max=lv>=SPD_MAX,cost=max?0:spdCost(lv),H0=heroStat();
-h+=`<div class="it"><b>🏃 Corsa · Velocità</b><span>Livello <b>${lv}/${SPD_MAX}</b> · bonus attuale <b>+${Math.round(lv*SPD_STEP*100)}%</b> · ogni livello <b>+${Math.round(SPD_STEP*100)}%</b></span><span>Velocità in partita: <b>${(H0.spd*spdMult()).toFixed(2)}</b> (base ${H0.spd.toFixed(2)})</span><span>${max?'Potenziamento completato':`Prossimo livello: <b>🪙 ${cost}</b> · ogni acquisto costa <b>circa il 28%</b> in più del precedente`}</span>${max?'<button class="btn sm" disabled>✔ Al massimo</button>':`<button class="btn sm" data-a="bspd">Potenzia 🪙${cost}</button>`}</div><p class="small">Le monete arrivano da zombie, ondate completate e <b>livelli raggiunti</b>: ogni nuovo livello regala monete. Il bonus vale per qualsiasi eroe, in solo e online.</p>`}
+if(tab==='speed'){const lv=spdLv(),max=lv>=SPD_MAX,cost=max?0:spdCost(lv),H0=heroStat(),poor=!max&&S.coins<cost?'poor':'';
+h+=`<div class="it"><b>🏃 Corsa · Velocità</b><span>Livello <b>${lv}/${SPD_MAX}</b> · bonus attuale <b>+${Math.round(lv*SPD_STEP*100)}%</b> · ogni livello <b>+${Math.round(SPD_STEP*100)}%</b></span><span>Velocità in partita: <b>${(H0.spd*spdMult()).toFixed(2)}</b> (base ${H0.spd.toFixed(2)})</span><span>${max?'Potenziamento completato':`Prossimo livello: <b>🪙 ${cost}</b> · ogni acquisto costa <b>circa il 28%</b> in più del precedente`}</span>${max?'<button class="btn sm" disabled>✔ Al massimo</button>':`<button class="btn sm ${poor}" data-a="bspd">Potenzia 🪙${cost}</button>`}</div><p class="small">Le monete arrivano da zombie, ondate completate e <b>livelli raggiunti</b>: ogni nuovo livello regala monete. Il bonus vale per qualsiasi eroe, in solo e online.</p>`}
 else if(tab==='stili'){
 h+='<div class="tabs" style="max-height:130px;overflow:auto">'+Object.keys(HEROES).map(id=>`<span class="tab ${hs===id?'on':''}" data-a="sskinhero" data-id="${id}">${S.heroes.includes(id)?'':'🔒 '}${HEROES[id].n}</span>`).join('')+'</div>';
 const HH=HEROES[hs],skins=SKINS[hs],eqId=(S.eqSkin[hs]||skins[0].id),accN=['','Berretto','Bandana','Corona','Visore','Corna'];
 h+='<p class="small">Aspetto di <b>'+HH.n+'</b> — cambia colori, accessorio ed effetti visivi (proiettili, abilita e scia).</p><div class="grid">';
 for(const sk of skins){const own=ownsSkin(sk.id),eq=eqId===sk.id,ac=accN[sk.c.acc]||'';
-h+=`<div class="it"><b>${hexDot(sk.c.shirt)}${sk.n}</b><span>${ac?'Accessorio: '+ac+' · ':''}Effetti ${hexDot(sk.c.fx)}</span>${eq?'<button class="btn sm" disabled>✔ In uso</button>':own?`<button class="btn sm alt" data-a="sskinuse" data-id="${sk.id}">Usa</button>`:`<button class="btn sm" data-a="sskinbuy" data-id="${sk.id}">Compra 🪙${sk.price}</button>`}</div>`}
+h+=`<div class="it"><b>${hexDot(sk.c.shirt)}${sk.n}</b><span>${ac?'Accessorio: '+ac+' · ':''}Effetti ${hexDot(sk.c.fx)}</span>${eq?'<button class="btn sm" disabled>✔ In uso</button>':own?`<button class="btn sm alt" data-a="sskinuse" data-id="${sk.id}">Usa</button>`:`<button class="btn sm ${S.coins<sk.price?'poor':''}" data-a="sskinbuy" data-id="${sk.id}">Compra 🪙${sk.price}</button>`}</div>`}
 h+='</div>'}
-else if(tab==='powers'){h+='<div class="grid">';for(const p of POWERS){const own=S.powers.includes(p.id);h+=`<div class="it"><b>${p.ico} ${p.n}</b><span>${p.desc} Ricarica ${p.cd}s</span>${own?'<button class="btn sm" disabled>Posseduto</button>':`<button class="btn sm" data-a="bpow" data-id="${p.id}">Compra 🪙${p.price}</button>`}</div>`}h+='</div><p class="small">I poteri comprati si aggiungono alla barra dopo le 2 abilita del personaggio (tasti 3-6).</p>'}
-else{const pre={helm:'h',armor:'a',trail:'t'}[tab];h+='<div class="grid">';for(const id in ITEMS)if(id[0]===pre){const it=ITEMS[id],own=S.items.includes(id);h+=`<div class="it"><b>${hexDot(it.col)}${it.n}</b>${it.quest?'<span>Ottenibile con gli incarichi</span>':''}${own?'<button class="btn sm" disabled>Posseduto</button>':it.quest?'<button class="btn sm" disabled>🔒 Incarico</button>':`<button class="btn sm" data-a="bitem" data-id="${id}">Compra 🪙${it.price}</button>`}</div>`}h+='</div>'}
+else if(tab==='powers'){h+='<div class="grid">';for(const p of POWERS){const own=S.powers.includes(p.id);h+=`<div class="it"><b>${p.ico} ${p.n}</b><span>${p.desc} Ricarica ${p.cd}s</span>${own?'<button class="btn sm" disabled>Posseduto</button>':`<button class="btn sm ${S.coins<p.price?'poor':''}" data-a="bpow" data-id="${p.id}">Compra 🪙${p.price}</button>`}</div>`}h+='</div><p class="small">I poteri comprati si aggiungono alla barra dopo le 2 abilita del personaggio (tasti 3-6).</p>'}
+else{const pre={helm:'h',armor:'a',trail:'t'}[tab];h+='<div class="grid">';for(const id in ITEMS)if(id[0]===pre){const it=ITEMS[id],own=S.items.includes(id);h+=`<div class="it"><b>${hexDot(it.col)}${it.n}</b>${it.quest?'<span>Ottenibile con gli incarichi</span>':''}${own?'<button class="btn sm" disabled>Posseduto</button>':it.quest?'<button class="btn sm" disabled>🔒 Incarico</button>':`<button class="btn sm ${S.coins<it.price?'poor':''}" data-a="bitem" data-id="${id}">Compra 🪙${it.price}</button>`}</div>`}h+='</div>'}
 openModal('🛒 Negozio',h);
 acts.stab=t=>openShop(t,hs);
 acts.sskinhero=id=>openShop('stili',id);
@@ -1292,13 +1295,13 @@ function packTicks(p){let h='';for(let i=0;i<9;i++){const t=p.pool[i%p.pool.leng
 function openAdvShop(){
  const total=candyTotal(),owned=S.packs||{};
  let h=`<p>🪙 ${S.coins} · 🎒 caramelle ${total}/${CANDY_MAX} · <button class="btn sm ghost" data-a="shakereq">📳 Scuoti</button></p><div class="grid">`;
- for(const p of PACKS){h+=`<div class="packcard" data-pack="${p.id}"><div class="pack" data-pack="${p.id}" style="box-shadow:inset 0 8px 18px #0008,0 0 18px ${p.hex}33"><div class="cap">${p.short}</div><div class="pbody">${packTicks(p)}</div></div><b>${p.n}</b><span>${p.d} · ${p.n3} caramelle</span><span>Prezzo: <b>🪙 ${p.price}</b> · ${Math.round(p.price/p.n3)} a caramella</span><span class="small">${p.pool.map(t=>CANDY[t].ico+' '+CANDY[t].n).join(' · ')}</span>${owned[p.id]?`<span style="color:#ffd58a">Hai ${owned[p.id]} bust${owned[p.id]>1?'e':'a'} da aprire: trascina il tappo verso l'alto</span>`:''}<button class="btn sm" data-a="packbuy" data-id="${p.id}">Compra busta</button></div>`}
+ for(const p of PACKS){h+=`<div class="packcard" data-pack="${p.id}"><div class="pack" data-pack="${p.id}" style="box-shadow:inset 0 8px 18px #0008,0 0 18px ${p.hex}33"><div class="cap">${p.short}</div><div class="pbody">${packTicks(p)}</div></div><b>${p.n}</b><span>${p.d} · ${p.n3} caramelle</span><span>Prezzo: <b>🪙 ${p.price}</b> · ${Math.round(p.price/p.n3)} a caramella</span><span class="small">${p.pool.map(t=>CANDY[t].ico+' '+CANDY[t].n).join(' · ')}</span>${owned[p.id]?`<span style="color:#ffd58a">Hai ${owned[p.id]} bust${owned[p.id]>1?'e':'a'} da aprire: trascina il tappo verso l'alto</span>`:''}<button class="btn sm ${S.coins<p.price?'poor':''}" data-a="packbuy" data-id="${p.id}">Compra busta</button></div>`}
  h+='</div><p class="small">Zaino massimo 10 caramelle. In partita puoi usare al massimo 3 avanzamenti diversi. Le caramelle durano il tempo indicato.</p>';
  openModal('🍬 Negozio Avanzamenti',h);
  acts.packbuy=id=>buyPack(id);acts.shakereq=enableShake;
  setupPackDrag();bindShake();
 }
-function buyPack(id){const p=PACKS.find(x=>x.id===id);if(!p)return;if(candyTotal()>=CANDY_MAX){toast('🎒 Zaino pieno (10 caramelle)');return}if(S.coins<p.price){toast('Monete insufficienti');return}S.coins-=p.price;S.packs=S.packs||{};S.packs[id]=(S.packs[id]||0)+1;persist(true);sfx('buy');const card=document.querySelector(`.packcard[data-pack="${id}"]`);if(card){card.classList.add('packlit');setTimeout(()=>card.classList.remove('packlit'),650)}toast('Busta comprata! Trascina il tappo verso l\'alto per aprirla');setTimeout(openAdvShop,500)}
+function buyPack(id){const p=PACKS.find(x=>x.id===id);if(!p)return;if(S.coins<p.price){toast('Non hai abbastanza soldi');return}if(candyTotal()>=CANDY_MAX){toast('🎒 Zaino pieno (10 caramelle)');return}S.coins-=p.price;S.packs=S.packs||{};S.packs[id]=(S.packs[id]||0)+1;persist(true);sfx('buy');const card=document.querySelector(`.packcard[data-pack="${id}"]`);if(card){card.classList.add('packlit');setTimeout(()=>card.classList.remove('packlit'),650)}toast('Busta comprata! Trascina il tappo verso l\'alto per aprirla');setTimeout(openAdvShop,500)}
 function setupPackDrag(){document.querySelectorAll('#mbody .pack').forEach(pk=>{if((S.packs?.[pk.dataset.pack]||0)<=0)return;const cap=pk.querySelector('.cap');if(!cap)return;let y0=null,dy=0;cap.addEventListener('pointerdown',e=>{e.preventDefault();y0=e.clientY;dy=0;try{cap.setPointerCapture(e.pointerId)}catch{}});cap.addEventListener('pointermove',e=>{if(y0===null)return;dy=Math.min(0,e.clientY-y0);cap.style.transform=`translateY(${dy}px) rotate(${dy*.35}deg)`});const end=()=>{if(y0===null)return;const d=dy;y0=null;if(d<-38){cap.style.transform='translateY(-96px) rotate(-14deg)';openPack(pk.dataset.pack,pk)}else cap.style.transform=''};cap.addEventListener('pointerup',end);cap.addEventListener('pointercancel',end)})}
 function openPack(id,pk){const p=PACKS.find(x=>x.id===id);if(!p||(S.packs?.[id]||0)<=0)return;if(candyTotal()+p.n3>CANDY_MAX){toast('🎒 Zaino pieno: servono '+p.n3+' posti liberi (hai '+candyTotal()+'/'+CANDY_MAX+')');return}pk.classList.add('opening');const n=p.n3,got={};for(let i=0;i<n;i++){const t=p.pool[Math.floor(Math.random()*p.pool.length)];got[t]=(got[t]||0)+1}
  const r=pk.getBoundingClientRect();
@@ -1326,7 +1329,7 @@ $('#mcust').onclick=openCust;
 /* ---- Eroi ---- */
 const KINDN={sword:'Mischia',spear:'Mischia lunga',hammer:'Mischia pesante',gun:'Distanza',smg:'Distanza rapida',shotgun:'Distanza corta',laser:'Cecchino',flame:'Fuoco',rocket:'Esplosivi',hat:'Esplosivi'}
 function openHeroes(){let h='<div class="grid">';for(const id in HEROES){const H=HEROES[id],own=S.heroes.includes(id),sk=curSkin(id);
-h+=`<div class="it"><b>${H.n}</b><span>${H.desc}</span><span>${hexDot(sk.c.shirt)}${sk.n} · ${KINDN[H.kind]||''}</span><span>${H.ab.map(k=>ABIL[k].ico+' '+ABIL[k].n).join(' · ')}</span><span>❤ ${H.hp} ⚔ ${H.dmg} ⚡ ${H.spd}</span>${S.hero===id?'<button class="btn sm" disabled>✔ In uso</button>':own?`<button class="btn sm alt" data-a="hsel" data-id="${id}">Usa</button>`:`<button class="btn sm" data-a="hbuy" data-id="${id}">Sblocca 🪙${H.price}</button>`}</div>`}
+h+=`<div class="it"><b>${H.n}</b><span>${H.desc}</span><span>${hexDot(sk.c.shirt)}${sk.n} · ${KINDN[H.kind]||''}</span><span>${H.ab.map(k=>ABIL[k].ico+' '+ABIL[k].n).join(' · ')}</span><span>❤ ${H.hp} ⚔ ${H.dmg} ⚡ ${H.spd}</span>${S.hero===id?'<button class="btn sm" disabled>✔ In uso</button>':own?`<button class="btn sm alt" data-a="hsel" data-id="${id}">Usa</button>`:`<button class="btn sm ${S.coins<H.price?'poor':''}" data-a="hbuy" data-id="${id}">Sblocca 🪙${H.price}</button>`}</div>`}
 openModal('🦸 Eroi',h+'</div><p class="small">Ogni eroe ha 2 abilita proprie (tasti 1 e 2). Gli stili si comprano nel Negozio → Stili.</p>');
 acts.hsel=id=>{S.hero=id;persist();makeMenuHero();barItems=abilityBar();openHeroes()};acts.hbuy=id=>{if(buy(HEROES[id].price)){S.heroes.push(id);S.hero=id;persist(true);sfx('coin');makeMenuHero();barItems=abilityBar();openHeroes()}}}
 $('#mheroes').onclick=openHeroes;
@@ -1448,7 +1451,7 @@ $('#pset').onclick=openSettings;$('#pexit').onclick=exitToMenu;$('#oagain').oncl
 function toggleFull(){const el=document.documentElement,on=document.fullscreenElement||document.webkitFullscreenElement;try{if(on){(document.exitFullscreen||document.webkitExitFullscreen).call(document)}else{const f=el.requestFullscreen||el.webkitRequestFullscreen;if(!f){toast('Fullscreen non supportato dal browser');return}Promise.resolve(f.call(el)).catch(()=>toast('Fullscreen non disponibile'))}}catch(e){toast('Fullscreen non disponibile')}}
 $('#mfull').onclick=toggleFull;$('#pfull').onclick=toggleFull;
 document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('.btn');if(!b)return;const r=b.getBoundingClientRect(),s=document.createElement('span');s.className='ripple';s.style.left=(e.clientX-r.left)+'px';s.style.top=(e.clientY-r.top)+'px';b.appendChild(s);setTimeout(()=>s.remove(),560)},{passive:true});
-$('#bTower').onclick=()=>{if(G.gm!=='ops'||S.coins<1000||!(P.down>0||P.out))return;S.coins-=1000;persist(true);Net.event('tower',{});towerRevive();toast('🌻 Torre rianimata per tutta la squadra!')};
+$('#bTower').onclick=()=>{if(G.gm!=='ops'||!(P.down>0||P.out))return;if(S.coins<1000){toast('Non hai abbastanza soldi');return}S.coins-=1000;persist(true);Net.event('tower',{});towerRevive();toast('🌻 Torre rianimata per tutta la squadra!')};
 $('#mlogout').onclick=async()=>{await flush();await BE.logout();leaveLobby();S=defSave();U={uid:'guest',name:'Ospite'};clearMenuHero();showScr('auth')};
 
 /* ================= INPUT ================= */
