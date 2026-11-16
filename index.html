@@ -1471,7 +1471,7 @@ $('#mlogout').onclick=async()=>{await flush();await BE.logout();leaveLobby();S=d
 
 /* ================= INPUT ================= */
 const KEYS={};
-addEventListener('keydown',e=>{if(G.mode!=='play'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;const k=e.code;KEYS[k]=true;
+addEventListener('keydown',e=>{const tag=e.target&&e.target.tagName||'';if(tag!=='INPUT'&&tag!=='SELECT'&&tag!=='TEXTAREA'&&menuKeys(e))return;if(G.mode!=='play'||tag==='INPUT'||tag==='SELECT')return;const k=e.code;KEYS[k]=true;
 if(k==='Space'){I.jump=true;e.preventDefault()}if(k>='Digit1'&&k<='Digit6')usePower(+k.slice(5)-1);if(k==='KeyF')I.atk=true;if(k==='Escape')showPause();
 if((k==='ShiftLeft'||k==='ShiftRight')&&!e.repeat){setShiftLock(!shiftLock);e.preventDefault()}
 kb()});
@@ -1536,6 +1536,22 @@ function gpFocusables(){
 function gpFocus(el){if(GP.focusEl===el)return;if(GP.focusEl)GP.focusEl.classList.remove('gp-focus');GP.focusEl=el;if(el){el.classList.add('gp-focus');try{el.focus({preventScroll:true})}catch(e){};try{el.scrollIntoView({block:'nearest'})}catch(e){}}}
 function gpNav(d){const a=gpFocusables();if(!a.length){gpFocus(null);return}let i=a.indexOf(GP.focusEl);i=i<0?(d>0?0:a.length-1):(i+d+a.length)%a.length;gpFocus(a[i])}
 function gpActivate(){const el=GP.focusEl;if(!el||!gpVisible(el)){gpNav(1);return}if(el.tagName==='SELECT'){el.selectedIndex=(el.selectedIndex+1)%el.options.length;el.dispatchEvent(new Event('input',{bubbles:true}));return}el.click()}
+function menuSelectStep(d){const el=GP.focusEl;if(!el||el.tagName!=='SELECT')return false;el.selectedIndex=clamp(el.selectedIndex+d,0,el.options.length-1);el.dispatchEvent(new Event('input',{bubbles:true}));return true}
+let menuKeyT=0,menuKeyDir=0;
+function menuKeys(e){
+ if(e.ctrlKey||e.metaKey||e.altKey)return false;
+ const modal=!$('#modal').classList.contains('hidden'),pause=!$('#pause').classList.contains('hidden'),over=!$('#over').classList.contains('hidden');
+ if(G.mode==='play'&&!modal&&!pause&&!over)return false;
+ const k=e.code,up=k==='ArrowUp'||k==='KeyW',down=k==='ArrowDown'||k==='KeyS',left=k==='ArrowLeft'||k==='KeyA',right=k==='ArrowRight'||k==='KeyD';
+ if(up||down||left||right){
+  e.preventDefault();
+  const now=performance.now(),d=down||right?1:-1;
+  if(GP.navDir!==d||now-menuKeyT>140){GP.navDir=d;menuKeyT=now;if(!(left||right)||!menuSelectStep(d))gpNav(d)}
+  return true
+ }
+ if(k==='Enter'||k==='NumpadEnter'||k==='Space'){e.preventDefault();if(!e.repeat)gpActivate();return true}
+ return false
+}
 function gpBack(){if(!$('#pause').classList.contains('hidden')){$('#presume').click();return}if(!$('#modal').classList.contains('hidden')){if(LOBBY&&$('#mtitle').textContent.startsWith('🧟'))return;const c=$('#mclose');if(c)c.click()}}
 function gpPause(){if(!$('#pause').classList.contains('hidden')){$('#presume').click();return}if(G.mode==='play'&&$('#modal').classList.contains('hidden')&&$('#over').classList.contains('hidden')){const hp=$('#hpause');if(hp)hp.click();gpFocus(gpFocusables()[0]||null)}}
 function gpUI(p,btn,edge){
@@ -1578,6 +1594,7 @@ function updGamepad(dt){
 }
 addEventListener('gamepadconnected',e=>{if(!GP.on&&e.gamepad){GP.on=true;GP.index=e.gamepad.index;GP.id=e.gamepad.id||'Controller';GP.fam=gpFam(GP.id);GP.prev=(e.gamepad.buttons||[]).map(b=>!!(b&&(b.pressed||b.value>.5)));GP.lastV=null;GP.wig=null;GP.shakeT=0;toast('🎮 '+gpName()+' connesso');gpSetHint()}});
 addEventListener('gamepaddisconnected',()=>{GP.on=false;GP.index=-1;GP.id='';GP.prev=[];GP.audio=false;GP.lastV=null;GP.wig=null;GP.shakeT=0;I.gkx=I.gkz=0;I.gjump=I.gatk=I.grev=false;gpFocus(null);toast('🎮 Controller scollegato');gpSetHint()});
+document.addEventListener('pointerdown',()=>{if(GP.focusEl){GP.focusEl.classList.remove('gp-focus');GP.focusEl=null}},true);
 hapticFn=haptic;
 // zoom unico (rotella + pinch), con scatto in prima persona sotto 1.4
 function zoomBy(d){cam.dist=clamp(cam.dist+d,0,10);if(cam.dist>0&&cam.dist<1.4)cam.dist=d<0?0:1.4}
