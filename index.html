@@ -651,19 +651,22 @@ function buildArena(){
   G.structs.push({id:G.structs.length,x,z,r:obst.r,hp:100,mesh,obst,dead:false})
  }));
 }
+function destroyStruct(s,remote){
+ if(!s||s.dead)return;s.dead=true;scene.remove(s.mesh);const i=G.obst.indexOf(s.obst);if(i>=0)G.obst.splice(i,1);burst(s.x,1.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(G.destructFloor)breakFloor(s.x,s.z,2.4,remote);if(!remote&&G.pvp&&Net.on)Net.event('sdest',{i:s.id})
+}
 function damageStructs(x,z,r,dmg){
  if(!G.mode2d||!G.destructStruct||!G.structs?.length)return;
  for(const s of G.structs){if(s.dead)continue;if(Math.hypot(s.x-x,s.z-z)>r+s.r)continue;
   s.hp-=dmg;s.mesh.scale.y=Math.max(.18,s.hp/100);s.mesh.position.y=1.2*(s.hp/100);
-  if(s.hp<=0){s.dead=true;scene.remove(s.mesh);const i=G.obst.indexOf(s.obst);if(i>=0)G.obst.splice(i,1);burst(s.x,1.2,s.z,0x9a7a4a,22,6,5,1);sfx('boom');if(G.destructFloor)breakFloor(s.x,s.z,2.4)}
+  if(s.hp<=0)destroyStruct(s,false)
  }
 }
-function breakFloor(x,z,r){
+function breakFloor(x,z,r,remote){
  if(!G.mode2d||!G.destructFloor)return;
  if((G.holes||[]).some(h=>Math.hypot(h.x-x,h.z-z)<1.5))return;
  if(G.holes.length>28){const old=G.holes.shift();scene.remove(old.m)}
  const m=new THREE.Mesh(new THREE.CircleGeometry(r,24),new THREE.MeshBasicMaterial({color:0x080808,transparent:true,opacity:.9,depthWrite:false}));
- m.rotation.x=-Math.PI/2;m.position.set(x,.11,z);scene.add(m);G.holes.push({x,z,r,m});burst(x,.25,z,0x4a3a2a,10,3,4)
+ m.rotation.x=-Math.PI/2;m.position.set(x,.11,z);scene.add(m);G.holes.push({x,z,r,m});burst(x,.25,z,0x4a3a2a,10,3,4);if(!remote&&G.pvp&&Net.on)Net.event('hole',{x:+x.toFixed(2),z:+z.toFixed(2),r:+r.toFixed(2)})
 }
 
 /* ================= MODELLI ================= */
@@ -919,6 +922,8 @@ else if(t==='dmg'){if(d.to===Net.id&&G.mode==='play')hurtMe(d.a,d.fx)}
 else if(t==='kill'){if(d.to===Net.id)reward(d.t,d.x,d.z)}
 else if(t==='fx'){if(G.mode==='play')spawnFx(d.k,d.x,d.z,d.c,d)}
 else if(t==='slow'){if(G.host)for(const z of G.zombies)if(Math.hypot(z.x-d.x,z.z-d.z)<17)z.slow=5}
+else if(t==='sdest'){if(G.mode==='play')destroyStruct(G.structs?.[d.i],true)}
+else if(t==='hole'){if(G.mode==='play'&&G.mode2d)breakFloor(d.x,d.z,d.r,true)}
 else if(t==='over'){if(G.mode==='play')gameOver(d)}
 else if(t==='rev'){if(d&&d.to===Net.id&&G.mode==='play'&&!G.pvp)reviveMe()}
 else if(t==='tower'){if(G.mode==='play'&&G.gm==='ops'){const nm=(Net.peers[from]&&Net.peers[from].doc.s&&Net.peers[from].doc.s.n)||'Un compagno';toast('🌻 '+nm+' ha rianimato la torre!');towerRevive()}}
@@ -944,6 +949,7 @@ function laserShot(dmg,col,range){
  hits.sort((a,b)=>a.pr-b.pr);
  for(const h of hits)sendHit(h.z,dmg,dx*2,dz*2,col);
  if(G.pvp)for(const e of pvpEnemies()){const rx=e.x-P.x,rz=e.z-P.z,pr=rx*dx+rz*dz;if(pr<0||pr>range)continue;const pd=Math.abs(rx*dz-rz*dx);if(pd<.95)hurtPlayer(e.id,dmg,dx*2,dz*2)}
+ if(G.mode2d&&G.destructStruct)damageStructs(P.x+dx*2,P.z+dz*2,2,dmg);
  const geo=new THREE.CylinderGeometry(.055,.055,range,6),mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false});
  const beam=new THREE.Mesh(geo,mat);beam.position.set(P.x+dx*range/2,1.35,P.z+dz*range/2);beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(dx,0,dz));scene.add(beam);
  fxs.push({m:beam,t:0,d:.16,f:p=>{beam.material.opacity=.9*(1-p)}});
@@ -1058,7 +1064,7 @@ if(p.k==='b'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y||1.35,p
  if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.8,p.d);
  if(p.l<=0)rm=true}
 else if(p.k==='flame'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;const kk=Math.max(.15,p.l/.42);p.m.position.set(p.x,p.y,p.z);p.m.scale.setScalar(kk);p.m.material.opacity=.85*kk;
- for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<1.1+ZT[z.type].scale*.4){p.hit.add(z.id);sendHit(z,p.d,p.vx*.05,p.vz*.05,p.col)}}
+ for(const z of G.zombies){if(z.dead||p.hit.has(z.id))continue;if(Math.hypot(z.x-p.x,z.z-p.z)<1.1+ZT[z.type].scale*.4){p.hit.add(z.id);sendHit(z,p.d,p.vx*.05,p.vz*.05,p.col)}}if(G.mode2d&&G.destructStruct)damageStructs(p.x,p.z,.9,p.d*.5)
  if(G.pvp)for(const e of pvpEnemies()){if(p.hit.has(e.id))continue;if(Math.hypot(e.x-p.x,e.z-p.z)<1.2){p.hit.add(e.id);hurtPlayer(e.id,p.d,p.vx*.05,p.vz*.05)}}
  if(p.l<=0)rm=true}
 else if(p.k==='rocket'){p.x+=p.vx*dt;p.z+=p.vz*dt;p.l-=dt;p.m.position.set(p.x,p.y,p.z);p.m.rotation.y+=dt*10;
