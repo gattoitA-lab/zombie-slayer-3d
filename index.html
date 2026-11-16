@@ -115,6 +115,17 @@ input,select{background:#0b0f0a;border:2px solid #556;border-radius:10px;color:#
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
 .it{background:#0b0f0a;border:1px solid #ffd58a55;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:4px}
 .it b{font-size:15px}.it span{font-size:12px;opacity:.8}
+.dailyhero{display:flex;gap:14px;align-items:center;background:linear-gradient(135deg,#3a2410,#141a12);border:2px solid #ffd58a;border-radius:14px;padding:14px;margin-bottom:10px}
+.dailyhero .big{font-size:46px;line-height:1;filter:drop-shadow(0 0 18px #ffd24a)}
+.dailyhero h3{margin:0 0 4px;font-size:20px}.dailyhero p{margin:3px 0;font-size:13px;opacity:.9}
+.dailygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:7px}
+.daily-card{position:relative;background:#0b0f0a;border:1px solid #ffd58a55;border-radius:12px;padding:9px;min-height:82px;display:flex;flex-direction:column;gap:3px;font-size:11px}
+.daily-card .dn{font-weight:900;font-size:11px;opacity:.7}
+.daily-card .di{font-size:24px;line-height:1.1}.daily-card .dr{font-weight:700;font-size:11px;line-height:1.25;opacity:.9}
+.daily-card.claimed{border-color:#7aff9a55;opacity:.68}.daily-card.claimed .di{filter:grayscale(.35)}
+.daily-card.current{border:2px solid #ffd24a;box-shadow:0 0 18px #ffd24a66;background:#1f1708;transform:translateY(-1px)}
+.daily-card.locked{opacity:.55}.daily-card .stamp{position:absolute;right:6px;top:5px;font-size:12px}
+.daily-claim{background:linear-gradient(#ffd24a,#e8801a)!important;color:#2a1600!important;border-color:#fff0b0!important;text-shadow:none!important;font-weight:900!important}
 .sw{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #fff;vertical-align:middle;margin-right:6px}
 .prog{height:8px;background:#000a;border-radius:6px;overflow:hidden}.prog i{display:block;height:100%;background:#7aff9a}
 .lob{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0b0f0a;border:1px solid #ffd58a55;border-radius:10px;padding:8px 10px;margin:5px 0}
@@ -201,7 +212,7 @@ input[type=range]{padding:0;accent-color:#e8801a}
 <div id="menu" class="screen hidden">
  <div id="topbar"><span class="pill" id="tuser">Ospite</span><span class="pill" id="tlvl">Lv 1</span><div id="xpb"><i id="xpf"></i></div><span class="pill" id="tcoin">🪙 0</span><span style="flex:1"></span><button class="btn sm ghost" id="mfull" title="Fullscreen">⛶</button><button class="btn sm ghost" id="mset">⚙️</button><button class="btn sm ghost" id="mlogout">Esci</button></div>
  <div class="col" id="lcol"><button class="btn red" id="mplay">⚔️ Gioca Solo</button><button class="btn alt" id="monline">🌐 Online</button><button class="btn" id="mheroes">🦸 Eroi</button></div>
- <div class="col" id="rcol"><button class="btn" id="mshop">🛒 Negozio</button><button class="btn" id="madv">🍬 Avanzamenti</button><button class="btn" id="mquest">📜 Incarichi</button><button class="btn" id="mcust">🎨 Personalizza</button><button class="btn" id="mtut">🎓 Tutorial</button></div>
+ <div class="col" id="rcol"><button class="btn" id="mshop">🛒 Negozio</button><button class="btn" id="madv">🍬 Avanzamenti</button><button class="btn" id="mquest">📜 Incarichi</button><button class="btn" id="mdaily">🎁 Regali giornalieri</button><button class="btn" id="mcust">🎨 Personalizza</button><button class="btn" id="mtut">🎓 Tutorial</button></div>
  <div id="menuhint">Trascina per ruotare il personaggio</div>
 </div>
 <div id="hud" class="screen hidden">
@@ -379,7 +390,7 @@ const ZIDS=Object.keys(ZT);
 
 /* ================= SALVATAGGIO / BACKEND ================= */
 const isM=isTouch;
-const defSave=()=>({coins:150,xp:0,spd:0,dmg:0,pow:0,candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},gp:{atk:7,jump:0,rev:1},mob:{side:'right',size:1}}});
+const defSave=()=>({coins:150,xp:0,spd:0,dmg:0,pow:0,daily:{day:0,last:''},candy:{},packs:{},heroes:['sword'],hero:'sword',powers:[],items:['h0','a0','t0'],eq:{h:'h0',a:'a0',t:'t0'},skins:[],eqSkin:{},q:{},qc:{},tutDone:false,set:{gfx:isM?1:3,vol:.8,sfx:.9,music:.35,keys:{atk:'KeyF',jump:'Space',rev:'KeyE'},gp:{atk:7,jump:0,rev:1},mob:{side:'right',size:1}}});
 const skinList=hid=>SKINS[hid]||SKINS.sword;
 const skinOf=(hid,id)=>skinList(hid).find(s=>s.id===id)||skinList(hid)[0];
 const ownsSkin=id=>{for(const hs in SKINS){const s=SKINS[hs].find(x=>x.id===id);if(s)return s.price===0||(S.skins||[]).includes(id)}return false};
@@ -401,6 +412,27 @@ const powLv=()=>Math.min(POW_MAX,S.pow||0);
 const powMult=()=>1+POW_STEP*powLv();
 const powCdMult=()=>1-POW_CD_STEP*powLv();
 const powCost=lv=>Math.round(120*Math.pow(1.28,lv)/5)*5;
+const DAILY_TOTAL=50;
+const dailyToday=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const dailyState=()=>{S.daily=S.daily||{day:0,last:''};S.daily.day=Math.max(0,Math.min(DAILY_TOTAL,+S.daily.day||0));S.daily.last=String(S.daily.last||'');return S.daily};
+const dailyReady=()=>{const st=dailyState();return st.day<DAILY_TOTAL&&st.last!==dailyToday()};
+const DAILY_CANDY=['str','hp','spd','poison','storm'];
+function dailyReward(day){
+ const g={coins:Math.round((60+day*12)/5)*5,xp:0,candy:null,candyN:0,power:false};
+ if(day%3===0)g.xp=15+day*3;
+ if(day%7===0){g.candy=DAILY_CANDY[(day/7-1)%DAILY_CANDY.length];g.candyN=day>=49?2:1}
+ if([10,20,30,40].includes(day)){g.coins+=250;g.xp+=80}
+ if(day===25)g.power=true;
+ if(day===50){g.coins+=1500;g.xp+=500;g.candy='storm';g.candyN=2;g.power=true}
+ return g;
+}
+function dailyRewardText(g){
+ const p=['🪙 '+g.coins];
+ if(g.xp)p.push('✨ '+g.xp+' XP');
+ if(g.candy){const c=CANDY[g.candy];p.push(c.ico+' '+c.n+(g.candyN>1?' ×'+g.candyN:''))}
+ if(g.power)p.push('⚡ Potere casuale');
+ return p.join(' · ');
+}
 function addXp(n){n=Math.max(0,Math.round(n));const l0=lvlInfo(S.xp).l;S.xp+=n;const l1=lvlInfo(S.xp).l;if(l1>l0){let c=0;for(let l=l0+1;l<=l1;l++)c+=50+20*(l-1);S.coins+=c;levelUpFX(l1,c)}return l1-l0}
 const LocalBE={rate:12,acc(){try{return JSON.parse(localStorage.getItem('zs_acc')||'{}')}catch{return{}}},
 async hash(p){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('zs3d'+p));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch{return btoa(p)}},
@@ -1499,6 +1531,35 @@ function openQuests(){let h='';for(const q of QUESTS){const v=Math.min(q.g,S.q[q
 openModal('📜 Incarichi',h);acts.qc=id=>{const q=QUESTS.find(x=>x.id===id);S.qc[id]=1;gainCoins(q.c);addXp(q.xp);if(q.item&&!S.items.includes(q.item))S.items.push(q.item);persist(true);toast('Ricompensa ottenuta!');openQuests()}}
 $('#mquest').onclick=openQuests;
 
+/* ---- Regali giornalieri ---- */
+function openDaily(){
+ const st=dailyState(),today=dailyToday(),done=st.day>=DAILY_TOTAL,claimedToday=st.last===today,can=!done&&!claimedToday,next=Math.min(DAILY_TOTAL,st.day+1);
+ let h='<div class="dailyhero"><div class="big">'+(done?'🏆':claimedToday?'✅':'🎁')+'</div><div><h3>'+(done?'Tutti i 50 regali riscossi!':claimedToday?'Regalo di oggi già riscosso':'Regalo di oggi disponibile')+'</h3><p>Giorno <b>'+st.day+'/'+DAILY_TOTAL+'</b> · '+(done?'Hai completato il calendario.':can?'Riscuoti il regalo di oggi.':'Torna domani per il prossimo regalo.')+'</p><p class="small">Ogni giorno in cui entri nel gioco si apre questa interfaccia.</p></div></div>';
+ if(can)h+=`<button class="btn daily-claim" data-a="dailyclaim">🎁 Apri il regalo del Giorno ${next}</button>`;
+ else if(claimedToday&&!done)h+='<button class="btn sm" disabled>✔ Torna domani per il Giorno '+(st.day+1)+'</button>';
+ h+='<div class="dailygrid" style="margin-top:10px">';
+ for(let i=1;i<=DAILY_TOTAL;i++){
+  const g=dailyReward(i),claimed=i<=st.day,current=i===st.day+1&&can;
+  h+=`<div class="daily-card ${claimed?'claimed':current?'current':'locked'}"><div class="dn">Giorno ${i}</div><div class="di">${claimed?'✅':current?'🎁':'🔒'}</div><div class="dr">${dailyRewardText(g)}</div>${current?'<span class="stamp">OGGI</span>':claimed?'<span class="stamp">✔</span>':''}</div>`
+ }
+ h+='</div><p class="small">Calendario di <b>50 regali</b>: monete, XP, caramelle e poteri. I giorni non riscossi non si accumulano; ogni giorno vale un regalo.</p>';
+ openModal('🎁 Regali giornalieri',h);
+ acts.dailyclaim=()=>claimDaily();
+}
+function claimDaily(){
+ const st=dailyState(),today=dailyToday();
+ if(st.day>=DAILY_TOTAL){toast('Hai già riscosso tutti i 50 regali');return}
+ if(st.last===today){toast('Regalo di oggi già riscosso');openDaily();return}
+ const day=st.day+1,g=dailyReward(day),parts=[];
+ st.day=day;st.last=today;S.daily=st;
+ if(g.coins){gainCoins(g.coins);parts.push('🪙 '+g.coins)}
+ if(g.xp){addXp(g.xp);parts.push('✨ '+g.xp+' XP')}
+ if(g.candy){const n=g.candyN;if(candyTotal()+n>CANDY_MAX){const c=150*n;gainCoins(c);parts.push('🪙 '+c+' (zaino pieno)')}else{S.candy=S.candy||{};S.candy[g.candy]=(S.candy[g.candy]||0)+n;updCandyBtn();parts.push(CANDY[g.candy].ico+' '+CANDY[g.candy].n+' ×'+n)}}
+ if(g.power){const avail=POWERS.filter(p=>!S.powers.includes(p.id));if(avail.length){const p=avail[day%avail.length];S.powers.push(p.id);barItems=abilityBar();parts.push('⚡ '+p.n)}else{gainCoins(500);parts.push('🪙 500 (poteri completi)')}}
+ persist(true);sfx('levelup');toast('🎁 Giorno '+day+'/50 · '+parts.join(' · '));openDaily();
+}
+$('#mdaily').onclick=()=>{initAudio();openDaily()};
+
 /* ---- Gioca solo ---- */
 function openSolo(){openModal('⚔️ Gioca Solo',`<div class="card" style="width:auto"><label>Modalità</label><select id="sg">${GMODES.filter(g=>!g.pvp).map(g=>`<option value="${g.id}">${g.n} — ${g.d}</option>`).join('')}</select><label>Mappa</label><select id="sm">${MAPS.map(m=>`<option value="${m[0]}">${m[1]}</option>`).join('')}</select><label>Visuale</label><select id="sv"><option value="0">3D</option><option value="1">2D laterale</option></select><label>Arena laterale</label><select id="sa">${Object.entries(ARENA_PRESETS).map(([id,a])=>`<option value="${id}">${a.n}</option>`).join('')}</select><label>Strutture (2D)</label><select id="sds"><option value="1" selected>Distruttibili</option><option value="0">Solide</option></select><label>Pavimento (2D)</label><select id="sdf"><option value="1" selected>Distruttibile</option><option value="0">Solido</option></select><label>Difficoltà</label><select id="sd">${DIFFS.map((d,i)=>`<option value="${i}" ${i===1?'selected':''}>${d.n}</option>`).join('')}</select><p class="small">La difficoltà cresce con il tuo livello (ora <b>Lv ${lvlInfo(S.xp).l}</b>): zombie più resistenti, forti e numerosi.</p><button class="btn red" id="sgo">▶ Inizia</button></div>`);
 $('#sgo').onclick=()=>{const m=$('#sm').value,d=+$('#sd').value,gm=$('#sg').value;leaveLobby();closeModal();startGame({online:false,host:true,map:m==='random'?anyMap():m,diff:d,gm,seed:Math.floor(Math.random()*1e6),mode2d:$('#sv').value==='1',arenaPreset:$('#sa').value,destructStruct:$('#sds').value==='1',destructFloor:$('#sdf').value==='1'})}}
@@ -1910,11 +1971,11 @@ renderer.render(scene,camera)}
 
 /* ================= AVVIO / LOGIN ================= */
 async function enterWorld(r){U={uid:r.uid,name:r.name};S=Object.assign(defSave(),r.save);S.set=Object.assign(defSave().set,r.save.set||{});S.set.keys=Object.assign(defSave().set.keys,S.set.keys||{});S.set.gp=Object.assign(defSave().set.gp,S.set.gp||{});S.set.mob=Object.assign(defSave().set.mob,S.set.mob||{});applyMob();S.eq=Object.assign(defSave().eq,r.save.eq||{});
-S.skins=Array.isArray(r.save.skins)?r.save.skins:[];S.eqSkin=Object.assign({},r.save.eqSkin||{});
+S.skins=Array.isArray(r.save.skins)?r.save.skins:[];S.eqSkin=Object.assign({},r.save.eqSkin||{});S.daily=Object.assign({day:0,last:''},r.save.daily||{});
 showScr('loading');const bar=$('#lbar'),tx=$('#ltxt');const steps=['Caricamento profilo...','Caricamento monete e oggetti...','Preparazione ambiente...','Generazione mondo 3D...'];
 for(let i=0;i<steps.length;i++){tx.textContent=steps[i];bar.style.width=((i+1)/steps.length*100)+'%';await new Promise(r=>setTimeout(r,i===3?50:260));if(i===2){applyGfx();rebuildEnv()}}
 await new Promise(r=>setTimeout(r,200));applyVol();enterMenu();
-const lc=new URLSearchParams(location.search).get('lobby');if(lc)joinLobby(lc);else if(!S.tutDone)setTimeout(()=>{if(G.mode==='menu'&&!LOBBY&&$('#modal').classList.contains('hidden'))openTutPrompt()},800)}
+const lc=new URLSearchParams(location.search).get('lobby');if(lc)joinLobby(lc);else setTimeout(()=>{if(G.mode==='menu'&&!LOBBY&&$('#modal').classList.contains('hidden')){if(dailyReady())openDaily();else if(!S.tutDone)openTutPrompt()}},800)}
 async function auth(fn){const u=$('#au').value.trim(),p=$('#ap').value;$('#aerr').textContent='';if(!/^[A-Za-z0-9_]{3,16}$/.test(u))return $('#aerr').textContent='Nome utente: 3-16 lettere, numeri o _';if(p.length<6)return $('#aerr').textContent='Password: minimo 6 caratteri';try{initAudio();await enterWorld(await fn(u,p))}catch(e){showScr('auth');$('#aerr').textContent=(e.message||'Errore').replace('Firebase: ','')}}
 $('#alogin').onclick=()=>auth((u,p)=>BE.login(u,p));$('#areg').onclick=()=>auth((u,p)=>BE.register(u,p));
 $('#aguest').onclick=async()=>{initAudio();await enterWorld(await BE.guest())};
