@@ -1479,7 +1479,7 @@ function enterMenu(keepRoom){stopGameSilent();G.mode='menu';rebuildEnv();makeMen
 function stopGameSilent(){if(G.mode==='play')stopGame()}
 function updateMenu(dt,t){if(!menuHero)return;const h=menuHero,H=HEROES[S.hero];if(!drag)menuRot+=dt*.25;h.g.rotation.y=menuRot;h.body.position.y=Math.sin(t*2)*.012;h.legL.rotation.x=h.legR.rotation.x=0;h.armL.rotation.x=Math.sin(t*1.5)*.06;
 const cyc=t%4.5,sT=(H.kind==='sword'||H.kind==='spear'||H.kind==='hammer')?cyc:9;armPose(h,H,sT,.45,Math.sin(t*2)*.1,0);const asp=innerWidth/innerHeight;camera.position.set(0,1.45,asp<.8?8:5.4);camera.lookAt(0,1.1,0);ENV&&ENV.update(dt,t,0,-5)}
-let drag=false,lastX=0;
+let drag=false,dragId=null,lastX=0;
 
 /* ================= UI ================= */
 const scr=['loading','auth','menu','hud'];
@@ -1991,6 +1991,11 @@ canvas.addEventListener('pointerdown',e=>{
     return;
   }
   // touch / penna
+  if(G.mode==='menu'&&!isUIOpen()){
+    e.preventDefault();drag=true;dragId=e.pointerId;lastX=e.clientX;
+    try{canvas.setPointerCapture(e.pointerId)}catch{}
+    return;
+  }
   if(G.mode==='play'&&!isUIOpen()&&!(e.target.closest&&e.target.closest('button,.pbtn,.btn,#hpause')))startTouch(e);
 });
 canvas.addEventListener('pointermove',e=>{
@@ -2004,6 +2009,7 @@ canvas.addEventListener('pointermove',e=>{
     }
     return;
   }
+  if(drag&&(dragId===null||e.pointerId===dragId)){e.preventDefault();menuRot+=(e.clientX-lastX)*.014;lastX=e.clientX;return}
   moveTouch(e);
 });
 canvas.addEventListener('pointerup',e=>{
@@ -2012,9 +2018,10 @@ canvas.addEventListener('pointerup',e=>{
     if(e.button===0)I.atk=false;
     drag=false;return;
   }
+  if(drag&&(dragId===null||e.pointerId===dragId)){drag=false;dragId=null}
   endTouch(e);
 });
-canvas.addEventListener('pointercancel',e=>{if(e.pointerType==='mouse'){lookHeld=false;drag=false;I.atk=false}else endTouch(e)});
+canvas.addEventListener('pointercancel',e=>{if(e.pointerType==='mouse'){lookHeld=false;drag=false;dragId=null;I.atk=false}else{if(drag&&(dragId===null||e.pointerId===dragId)){drag=false;dragId=null}endTouch(e)}});
 canvas.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse'&&lookHeld&&e.buttons===0)lookHeld=false});
 addEventListener('mouseup',e=>{if(e.button===0)I.atk=false;if(e.button===2){lookHeld=false;if(!shiftLock)unlockMouse();syncLooking()}});
 addEventListener('wheel',e=>{if(G.mode==='play'&&!isUIOpen()){e.preventDefault();zoomBy(e.deltaY*.004)}},{passive:false});
