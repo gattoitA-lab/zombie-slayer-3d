@@ -545,7 +545,7 @@ const randB64=n=>{const u=new Uint8Array(n);crypto.getRandomValues(u);return b64
 async function cloudVerifier(p,salt){try{const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(p),'PBKDF2',false,['deriveBits']);const b=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:bytesFromB64(salt),iterations:120000},k,256);return b64FromBytes(new Uint8Array(b))}catch{return LocalBE.rawHash(salt+':'+p)}}
 const CloudBE={rate:8,net:true,tok:(()=>{try{return localStorage.getItem('zs_tok')||''}catch{return''}})(),
 setTok(t){this.tok=t||'';try{t?localStorage.setItem('zs_tok',t):localStorage.removeItem('zs_tok')}catch{}},
-async api(path,body){let r;try{r=await fetch(CLOUD_API+path,{method:body?'POST':'GET',headers:Object.assign({'content-type':'application/json'},this.tok?{authorization:'Bearer '+this.tok}:{}),body:body?JSON.stringify(body):undefined})}catch{throw new Error('Server account non raggiungibile: controlla la connessione a internet')}
+async api(path,body){const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),15000);let r;try{r=await fetch(CLOUD_API+path,{method:body?'POST':'GET',headers:Object.assign({'content-type':'application/json'},this.tok?{authorization:'Bearer '+this.tok}:{}),body:body?JSON.stringify(body):undefined,signal:ac.signal})}catch{throw new Error('Server account non raggiungibile: controlla la connessione a internet')}finally{clearTimeout(tm)}
  let d={};try{d=await r.json()}catch{}
  if(!r.ok){const e=d.e||'';if(e==='exists')throw new Error('Nome utente già in uso: scegli un altro nome oppure premi Accedi');if(e==='bad')throw new Error('Nome utente o password errati');if(e==='auth'){this.setTok('');throw new Error('Sessione scaduta: accedi di nuovo')}if(e==='rate')throw new Error('Troppi tentativi: aspetta un minuto e riprova');if(e==='user')throw new Error('Nome utente: 3-16 lettere, numeri o _');if(e==='pass')throw new Error('Password non valida');throw new Error('Errore del server account ('+r.status+')')}
  return d},
@@ -2126,7 +2126,7 @@ $('#ap').addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault(
 $('#aguest').onclick=async()=>{initAudio();await enterWorld(await BE.guest())};
 (async()=>{$('#abe').textContent=BE===FireBE||BE===CloudBE?'☁️ Account cloud attivo: usa lo stesso nome e la stessa password su PC, tablet o telefono e ritroverai i tuoi progressi.':'💾 Salvataggio locale in questo browser: registra lo stesso nome anche sugli altri dispositivi (Firebase abilita il cloud).';
 applyGfx();requestAnimationFrame(loop);const bar=$('#lbar');for(let i=1;i<=5;i++){bar.style.width=i*20+'%';await new Promise(r=>setTimeout(r,160))}
-let sess=null;try{sess=await BE.session()}catch(e){}if(sess)await enterWorld(sess);else showScr('auth')})();
+let sess=null;try{sess=await BE.session()}catch(e){showScr('auth');$('#aerr').textContent=e.message||'Connessione non disponibile'}if(sess)await enterWorld(sess);else showScr('auth')})();
 </script>
 </body>
 </html>
