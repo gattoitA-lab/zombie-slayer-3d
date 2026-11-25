@@ -37,5 +37,7 @@ Dopo circa un minuto la nuova versione è online. In collaborazione, chi lavora 
 ## ⚠️ Note
 
 - L'online tra dispositivi funziona senza configurazione tramite un broker MQTT pubblico (`broker.emqx.io`): crea una lobby e condividi codice o link. Le stanze sono pubbliche sul broker, quindi non condividere dati personali.
-- Firebase (`FIREBASE_CONFIG`) è opzionale: se configurato, account e salvataggi passano nel cloud. Senza Firebase i progressi restano nel browser, ma le lobby online funzionano comunque tra dispositivi.
+- Gli account sono cloud (`CLOUD_API`, backend in `cloud/`): lo stesso nome e la stessa password funzionano su PC, tablet e telefono e i progressi si sincronizzano. La password non lascia il dispositivo: il browser calcola un verifier PBKDF2 e il server conserva solo il suo hash. Senza connessione l'accesso all'account non è disponibile; la modalità ospite resta locale.
+- Firebase (`FIREBASE_CONFIG`) resta opzionale come alternativa: se compilato ha la precedenza sul backend incluso.
+- Gli account creati prima di questa versione restano locali: alla prima registrazione cloud con lo stesso nome e password il salvataggio locale viene copiato nell'account cloud.
 - La grafica 3D usa WebGL, quindi serve un browser aggiornato.
